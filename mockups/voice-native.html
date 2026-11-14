@@ -43,7 +43,8 @@ kbd{font:500 12px/16px 'Geist Mono',monospace;min-width:24px;height:24px;padding
   .tab:hover{color:var(--ink)}
   .ghost:hover,.link:hover{color:var(--ink)}}
 
-#fx{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+/* the canvases fill the visible screen (inset 0), not 100vh, which on phones includes the area behind the address bar and stretched the circles */
+#fx{position:fixed;inset:0;width:100%;height:100%;display:block}
 #orbBox,#globeBox{position:fixed;left:50%;top:50%;width:var(--orb);height:var(--orb);transform:translate(-50%,-50%);transition:opacity .5s var(--ease-out),transform .5s var(--ease-out),top .6s var(--ease-drawer)}
 /* in the app the globe sits 88 px above the middle, so the captions have room between it and the dock */
 /* the orb is always in the exact centre. Its size is set by layoutStage() so everything fits. On the start screen it is scaled down (--gs) and grows on Start */
@@ -56,7 +57,7 @@ body.ready .rv{opacity:1;filter:none;transform:none;transition:opacity .48s line
 body:not(.ready) header .logo{opacity:0}header .logo{transition:opacity .6s var(--ease-out)}
 @media (prefers-reduced-motion:reduce){.rv{filter:none;transform:none}}
 /* constellations and twinkling stars, drawn above the background but below everything else */
-#sky{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none}
+#sky{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
 #orbBox.off,#globeBox.off{opacity:0;transform:translate(-50%,-50%) scale(.94);pointer-events:none}
 #orbBox canvas,#globeBox canvas{display:block;width:100%;height:100%}
 .pinLabel{position:fixed;pointer-events:none;font-size:12px;line-height:16px;white-space:nowrap;transform:translate(16px,-50%);text-shadow:0 0 8px var(--black);z-index:6}
@@ -111,7 +112,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #captions{position:fixed;left:50%;top:calc(50% + var(--orb)*.41 + 40px);height:88px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;z-index:5;font-weight:300;font-size:24px;line-height:32px;transition:opacity .4s var(--ease-out);display:flex;flex-direction:column;justify-content:center;overflow:hidden;pointer-events:none}
 #captions .line{transition:opacity .2s var(--ease-out),filter .2s var(--ease-out)}#captions .line.swap{opacity:0;filter:blur(4px)}
 #captions.over{justify-content:flex-end;-webkit-mask-image:linear-gradient(180deg,transparent,var(--black) 40%);mask-image:linear-gradient(180deg,transparent,var(--black) 40%)}
-#captions .again{pointer-events:auto;margin:12px auto 0}
+#captions .again{pointer-events:auto;margin:8px auto 0;padding:4px 8px;font-size:16px;line-height:24px}
 #captions .who{display:block;font-size:12px;line-height:16px;font-weight:500;color:var(--deco);margin-bottom:8px}
 #captions .you{color:var(--accent)}
 
@@ -171,6 +172,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #gate .ghead p{color:var(--mute);font-size:16px;line-height:24px;margin:16px auto 0;max-width:480px}
 #gate .hp{display:inline-flex;gap:8px;align-items:flex-start;color:var(--mute);font-size:16px;line-height:24px;padding:12px 0}
 /* secondary start button: same shape and height as Start, outline only */
+#gate .gbtns{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
+@media (max-width:480px){#gate .gbtns .cta{flex:1 1 100%;justify-content:space-between}}
 #gate .cta2{background:transparent;color:var(--ink);box-shadow:inset 0 0 0 1px var(--deco);font-weight:500}
 #gate .cta2 kbd{box-shadow:inset 0 0 0 1px var(--line);color:var(--mute)}
 @media (hover:hover) and (pointer:fine){#gate .cta2:hover{background:var(--w4)}}
@@ -314,8 +317,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 <div id="gate" role="dialog" aria-modal="true" aria-labelledby="gt" aria-describedby="gd">
     <div class="ghead"><h1 id="gt"></h1><p id="gd" class="rv" style="--d:.2s"></p></div>
   <div class="gctl rv" style="--d:.32s">
-    <button class="cta" id="start" autofocus>Start talking <kbd>Enter</kbd></button>
-    <button class="cta cta2" id="startTyping">Type instead <kbd>T</kbd></button>
+    <div class="gbtns"><button class="cta" id="start" autofocus>Start talking <kbd>Enter</kbd></button>
+    <button class="cta cta2" id="startTyping">Type instead <kbd>T</kbd></button></div>
     <p class="hp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1"/><rect x="17" y="14" width="4" height="7" rx="1"/></svg><span>Best with headphones</span></p>
   </div>
 </div>
@@ -372,7 +375,7 @@ function setState(m,label){S.mode=m;$('#srStatus').textContent=label;}
 /* ================= background: concentric circles (bend with the waves) and still stars ================= */
 const ringsC=document.createElement('canvas'),rx=ringsC.getContext('2d');
 const starsC=document.createElement('canvas'),sx=starsC.getContext('2d');
-function drawBg(){const w=innerWidth,h=innerHeight;ringsC.width=starsC.width=w;ringsC.height=starsC.height=h;
+function drawBg(){const w=cv.clientWidth,h=cv.clientHeight;ringsC.width=starsC.width=w;ringsC.height=starsC.height=h;
   rx.fillStyle='#000';rx.fillRect(0,0,w,h);const cx=w/2,cy=h/2;
   for(let i=0;i<70;i++){rx.beginPath();rx.arc(cx,cy,128+i*16,0,Math.PI*2);rx.strokeStyle="rgba(255,255,255,.04)";rx.lineWidth=i%5===0?2:1;rx.stroke();}
   sx.fillStyle='#000';sx.fillRect(0,0,w,h);let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -390,7 +393,7 @@ function keepOut(){const z=[[0,0,innerWidth,96]];const add=el=>{if(!el||el.hidde
   ['#dock','#captions','#playerWrap','#sourceWrap'].forEach(q=>add($(q)));if(!started)['#gate .ghead','#gate .gctl','#gate .hp'].forEach(q=>add($(q)));
   const o=box.getBoundingClientRect(),cx=o.left+o.width/2,cy=o.top+o.height/2,rr=o.width*.5+24;z.push([cx-rr,cy-rr,cx+rr,cy+rr]);return z;}
 const hits=(r,z)=>z.some(q=>r[0]<q[2]&&r[2]>q[0]&&r[1]<q[3]&&r[3]>q[1]);
-function drawSky(relayout){const dpr=Math.min(devicePixelRatio,2),W=innerWidth,H=innerHeight;
+function drawSky(relayout){const dpr=Math.min(devicePixelRatio,2),W=sky.clientWidth,H=sky.clientHeight;
   if(relayout){sky.width=W*dpr;sky.height=H*dpr;kx.setTransform(dpr,0,0,dpr,0,0);const z=keepOut();skyStars=[];let seed=11;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
     const spots=[[.06,.58],[.80,.62],[.10,.30],[.78,.30],[.30,.78],[.62,.80],[.04,.80],[.86,.82]];let ci=0;
     for(const [fx,fy] of spots){if(ci>=CONS.length)break;const c=CONS[ci];const x=fx*W,y=fy*H,r=[x,y,x+c.w,y+c.h];if(x+c.w>W-16||y+c.h>H-16||hits(r,z))continue;c.p.forEach(([a,b])=>skyStars.push({x:x+a*c.w,y:y+b*c.h,r:1.6,base:.4,peak:1,lit:-9}));ci++;}
@@ -423,7 +426,7 @@ void main(){vec2 p=gl_FragCoord.xy;vec2 d=p-C;float dist=length(d);vec2 dir=dist
   texR=mk();texS=mk();gl.uniform1i(uni.T,0);gl.uniform1i(uni.T2,1);})();
 function upload(){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texR);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ringsC);
   gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,texS);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,starsC);}
-function resizeFx(){const dpr=Math.min(devicePixelRatio,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;gl.viewport(0,0,cv.width,cv.height);drawBg();}
+function resizeFx(){const dpr=Math.min(devicePixelRatio,2);cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);gl.viewport(0,0,cv.width,cv.height);drawBg();}
 
 /* ================= land / water, and picture brightness for depth ================= */
 let land=null;{const img=new Image();img.crossOrigin='anonymous';img.src='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-water.png';
@@ -436,6 +439,8 @@ function nearestWater(lat,lon){if(!isLand(lat,lon))return {lat,lon,name:oceanNam
 function samplePoint(rec=cur.rec,lat=cur.lat,lon=cur.lon){if(REC[rec].sea&&isLand(lat,lon)){const w=nearestWater(lat,lon);return {lat:w.lat,lon:w.lon,water:w.name};}return {lat,lon,water:REC[rec].sea?oceanName(lat,lon):null};}
 
 /* ================= the orb: the globe with gradient ================= */
+/* start-screen split: default moves the halves apart; ?split=gap keeps a perfect circle and hides the middle lines */
+const SPLIT_GAP=new URLSearchParams(location.search).get('split')==='gap';
 const O={style:'lines',depth:0,gdepth:0,split:.3,pin:0,dot:false,behaviour:'focus',speed:15,spinLat:null,dir:1,wob:1,vl:21.6,vt:47,ramp:REC.sst.ramp.map(c=>new THREE.Color(c)),rampT:REC.sst.ramp.map(c=>new THREE.Color(c)),tint:new THREE.Color(.37,.82,.88),tintT:new THREE.Color(.37,.82,.88),tintAmt:0,glat:63.1,glon:21.6};
 const box=$('#orbBox');const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));box.appendChild(renderer.domElement);
 const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(32,1,.1,50);cam.position.set(0,0,6.6);
@@ -465,7 +470,7 @@ function updView(t){const plat=cur.lat,plon=cur.lon;
   const tl=O.behaviour==='spin'?(O.spinLat??plat):plat,tn=O.behaviour==='spin'?O.vl:plon;O.glat+=(tl-O.glat)*.12;O.glon+=(((tn-O.glon+540)%360)-180)*.12;}
 function drawOrb(t,sW,sM){O.ramp.forEach((c,i)=>c.lerp(O.rampT[i],.06));O.tint.lerp(O.tintT,.15);O.tintAmt+=((playingSomething()?.55:0)-O.tintAmt)*.05;const plat=cur.lat,plon=cur.lon;
   const amp=(S.mode==='processing'?.05:0)+sW*.32*O.wob,dep=O.depth*.2;
-  rings.forEach((ring,i)=>{const pos=ring.line.geometry.attributes.position.array,col=ring.line.geometry.attributes.c.array;const sx=ring.s*RO+Math.sign(ring.s)*O.split;
+  rings.forEach((ring,i)=>{const pos=ring.line.geometry.attributes.position.array,col=ring.line.geometry.attributes.c.array;const sx=SPLIT_GAP?ring.s*RO:ring.s*RO+Math.sign(ring.s)*O.split,gapK=SPLIT_GAP?Math.min(1,Math.max(0,(Math.abs(ring.s)-O.split*.6)/.08)):1;
     for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,cy=Math.cos(a),cz=Math.sin(a);const [lat,lon]=toGeo(ring.s,ring.r*cy,ring.r*cz);const ang=angDist(lat,lon,plat,plon),near=Math.exp(-Math.pow(ang/.32,2));
       let d=1+.055*O.wob*n3(cy*1.5+ring.seed,cz*1.5,t*.5+i*.2)-.035*O.wob*Math.max(0,Math.sin(a*2+ring.seed)-.92)*12+amp*n3(cy*3+i*.4,cz*3,t*2.2+ring.seed)+near*sM*.16;
       if(S.mode==='processing')d+=.06*Math.sin(a*3+t*3+i*.5);if(reduce)d=1;if(dep>.001)d+=dep*brightAt(lat,lon);
@@ -473,7 +478,7 @@ function drawOrb(t,sW,sM){O.ramp.forEach((c,i)=>c.lerp(O.rampT[i],.06));O.tint.l
       let c=rampAt(1-Math.abs(lat)/90).clone().lerp(O.tint,O.tintAmt*(.5+near*.5)),alpha;if(isLand(lat,lon)){alpha=1;c.lerp(WHITE,.35);}else{alpha=.07;c.multiplyScalar(.6);}
       if(dep>.001){const b=brightAt(lat,lon);alpha=Math.max(alpha,b*O.depth*.32);}
       if(O.pin===3&&started){const nb=Math.exp(-Math.pow(ang/.5,2));if(nb>.03){const g=nb*(.9+sM*.8);alpha=Math.min(1,alpha+g*1.4);c.lerp(O.tint.clone().lerp(WHITE,.3),Math.min(1,g));}}
-      col[k*4]=c.r;col[k*4+1]=c.g;col[k*4+2]=c.b;col[k*4+3]=alpha;}
+      col[k*4]=c.r;col[k*4+1]=c.g;col[k*4+2]=c.b;col[k*4+3]=alpha*gapK;}
     ring.line.geometry.attributes.position.needsUpdate=true;ring.line.geometry.attributes.c.needsUpdate=true;});
   if(O.pin===1&&started){const ms=fromGeo(plat,plon).x;let mi=0,b=9;rings.forEach((r,i)=>{const d=Math.abs(r.s-ms);if(d<b){b=d;mi=i;}});const c=rings[mi].line.geometry.attributes.c.array,hc=O.tint.clone().lerp(WHITE,.35);for(let k=0;k<=SEG;k++){c[k*4]=hc.r;c[k*4+1]=hc.g;c[k*4+2]=hc.b;c[k*4+3]=.95;}}
   pl.copy(fromGeo(plat,plon)).multiplyScalar(RO);const front=pl.z>-.1&&O.behaviour!=='spin'&&started;const pc=O.tint.clone().lerp(WHITE,.4);
@@ -542,7 +547,9 @@ function layoutStage(){const W=innerWidth,H=innerHeight,ph=W<=640,hdr=80,dockTop
   const R=document.documentElement.style;R.setProperty('--orb',app+'px');R.setProperty('--gs',(gate/app).toFixed(3));
   gh.style.top=Math.max(hdr+16,Math.round(H/2-gate*k-40-ghH))+'px';gc.style.top=Math.round(H/2+gate*k+40)+'px';
   sizeOrb();sizeGlobe();if(started)layoutCaptions();}
-addEventListener('resize',()=>{resizeFx();layoutStage();drawSky(true);if(trayOpen())sizeTray(true);});resizeFx();requestAnimationFrame(frame);
+const onResize=()=>{resizeFx();layoutStage();drawSky(true);if(trayOpen())sizeTray(true);};addEventListener('resize',onResize);
+/* phones: the address bar shows and hides without a normal resize, so also follow the visual viewport */
+if(window.visualViewport){let vvT;visualViewport.addEventListener('resize',()=>{clearTimeout(vvT);vvT=setTimeout(onResize,120);});}resizeFx();requestAnimationFrame(frame);
 
 /* ================= instruments ================= */
 let AC,music,an,adata;
@@ -667,7 +674,7 @@ let conv=null,raf=0,quietSince=0,captionT=null,pending=[],connecting=false;
 const LOG=[];let capQ=[],capTimer=null;
 /* split only where a full stop, question or exclamation mark is followed by a space, so numbers like 4.9 stay whole */
 function splitSentences(t){return t.split(/(?<=[.!?]["')\]]*)\s+/).map(x=>x.trim()).filter(Boolean);}
-function showLine(who,text,again){const c=$('#captions');c.style.opacity=1;const html=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="pill again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;
+function showLine(who,text,again){const c=$('#captions');c.style.opacity=1;const html=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="link again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;
   const old=c.querySelector('.line');const put=()=>{c.innerHTML=`<div class="line swap">${html}</div>`;if(again)$('#againBtn').onclick=talkAgain;fitCaption();requestAnimationFrame(()=>c.querySelector('.line')?.classList.remove('swap'));};
   if(old&&!reduce){old.classList.add('swap');setTimeout(put,160);}else put();}
 function scheduleFade(ms=6000){clearTimeout(captionT);captionT=setTimeout(()=>{if(!$('#againBtn'))$('#captions').style.opacity=0;},ms);}
