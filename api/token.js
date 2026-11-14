@@ -18,7 +18,10 @@ module.exports = async function handler(req, res) {
   try {
     const r = await fetch(url, { headers: { 'xi-api-key': key } });
     if (!r.ok) {
-      res.status(502).json({ error: 'upstream', status: r.status });
+      // pass back ElevenLabs' reason (it never contains the key) so problems are easy to see
+      let reason = '';
+      try { const e = await r.json(); reason = (e.detail && (e.detail.status || e.detail.message || e.detail)) || ''; } catch (_) {}
+      res.status(502).json({ error: 'upstream', status: r.status, reason: String(reason).slice(0, 200) });
       return;
     }
     const j = await r.json();
