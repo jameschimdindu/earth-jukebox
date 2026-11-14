@@ -46,7 +46,16 @@ kbd{font:500 12px/16px 'Geist Mono',monospace;min-width:24px;height:24px;padding
 #fx{position:fixed;inset:0;width:100vw;height:100vh;display:block}
 #orbBox,#globeBox{position:fixed;left:50%;top:50%;width:var(--orb);height:var(--orb);transform:translate(-50%,-50%);transition:opacity .5s var(--ease-out),transform .5s var(--ease-out),top .6s var(--ease-drawer)}
 /* in the app the globe sits 88 px above the middle, so the captions have room between it and the dock */
-body.started #orbBox,body.started #globeBox{top:calc(50% - 88px)}
+/* the orb is always in the exact centre. Its size is set by layoutStage() so everything fits. On the start screen it is scaled down (--gs) and grows on Start */
+body:not(.started) #orbBox{transform:translate(-50%,-50%) scale(var(--gs,1))}
+body:not(.ready) #orbBox{opacity:0;transform:translate(-50%,-50%) scale(calc(var(--gs,1)*.96))}
+/* page load, after Linear: each part arrives from a 10 px blur, one after the other */
+.rv{display:inline-block;opacity:0;filter:blur(10px);transform:translateY(8px)}
+body.ready .rv{opacity:1;filter:none;transform:none;transition:opacity .8s var(--ease-out),filter .8s var(--ease-out),transform .8s var(--ease-out);transition-delay:var(--d,0s)}
+body:not(.ready) header .logo{opacity:0}header .logo{transition:opacity .6s var(--ease-out)}
+@media (prefers-reduced-motion:reduce){.rv{filter:none;transform:none}}
+/* constellations and twinkling stars, drawn above the background but below everything else */
+#sky{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none}
 #orbBox.off,#globeBox.off{opacity:0;transform:translate(-50%,-50%) scale(.94);pointer-events:none}
 #orbBox canvas,#globeBox canvas{display:block;width:100%;height:100%}
 .pinLabel{position:fixed;pointer-events:none;font-size:12px;line-height:16px;white-space:nowrap;transform:translate(16px,-50%);text-shadow:0 0 8px var(--black);z-index:6}
@@ -98,7 +107,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .opt[aria-pressed=true] .ck{opacity:1;transform:none}
 
 /* captions: max 560 wide, 40 px from the globe and 40 px from the shortcuts */
-#captions{position:fixed;left:50%;top:calc(50% + var(--orb)*.41 + 40px);height:96px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;z-index:5;font-weight:300;font-size:24px;line-height:32px;transition:opacity .5s var(--ease-out);display:flex;flex-direction:column;justify-content:center;overflow:hidden;pointer-events:none}
+#captions{position:fixed;left:50%;top:calc(50% + var(--orb)*.41 + 40px);height:88px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;z-index:5;font-weight:300;font-size:24px;line-height:32px;transition:opacity .4s var(--ease-out);display:flex;flex-direction:column;justify-content:center;overflow:hidden;pointer-events:none}
+#captions .line{transition:opacity .2s var(--ease-out),filter .2s var(--ease-out)}#captions .line.swap{opacity:0;filter:blur(4px)}
 #captions.over{justify-content:flex-end;-webkit-mask-image:linear-gradient(180deg,transparent,var(--black) 40%);mask-image:linear-gradient(180deg,transparent,var(--black) 40%)}
 #captions .again{pointer-events:auto;margin:12px auto 0}
 #captions .who{display:block;font-size:12px;line-height:16px;font-weight:500;color:var(--deco);margin-bottom:8px}
@@ -154,13 +164,13 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 /* start screen: the orb waits, split at the centre. The header stays; only its buttons are hidden. */
 #gate{position:fixed;inset:0;z-index:20;pointer-events:none;transition:opacity .25s var(--ease-out)}
 #gate.out{opacity:0}
-#gate .ghead{position:absolute;left:50%;top:calc(50% - var(--orb)*.42 - 40px);transform:translate(-50%,-100%);width:min(680px,calc(100vw - 32px));text-align:center}
+#gate .ghead{position:absolute;left:50%;top:96px;transform:translateX(-50%);width:min(680px,calc(100vw - 32px));text-align:center}
 #gate h1{font-weight:300;font-size:64px;line-height:72px;letter-spacing:-.045em}
 #gate h1 em{font-style:normal;color:var(--accent)}
 #gate .ghead p{color:var(--mute);font-size:16px;line-height:24px;margin:16px auto 0;max-width:480px}
-#gate .ghead .hp{display:inline-flex;gap:8px;align-items:flex-start;margin-top:8px;color:var(--mute)}
-#gate .ghead .hp svg{width:16px;height:16px;margin-top:4px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
-#gate .gctl{position:absolute;left:50%;top:calc(50% + var(--orb)*.41 + 40px);transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:8px}
+#gate .hp{position:absolute;right:var(--g);top:28px;display:inline-flex;gap:8px;align-items:flex-start;color:var(--mute);font-size:16px;line-height:24px}
+#gate .hp svg{width:16px;height:16px;margin-top:4px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
+#gate .gctl{position:absolute;left:50%;top:calc(50% + 200px);transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:8px}
 /* the start button: 56 high, key 32 high, so 12 px on every side of the key */
 .cta{display:inline-flex;gap:16px;align-items:center;padding:12px 12px 12px 24px;border-radius:99px;border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:16px;line-height:24px;cursor:pointer;min-height:56px}
 .cta kbd{box-shadow:inset 0 0 0 1px currentColor;color:inherit;background:transparent;height:32px;min-width:48px;padding:0 8px}
@@ -180,7 +190,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .view.measure{position:absolute;visibility:hidden;top:0;left:0}
 .tp.measure,.tp.leaving{width:100%}
 .mv{width:256px;padding:4px}
-#mv-src,#mv-keys{width:min(400px,calc(100vw - 32px));padding:12px 16px 16px}
+#mv-src,#mv-keys,#mv-log{width:min(400px,calc(100vw - 32px));padding:12px 16px 16px}
 #menu .go{display:inline-flex;gap:8px;align-items:center;color:var(--mute)}#menu .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
 .vhead{display:flex;align-items:center;gap:8px;margin:-4px 0 8px -8px}
 .vhead h2{font-size:16px;line-height:24px;font-weight:500;padding:0}
@@ -190,6 +200,9 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .srcfig{margin-top:8px;overflow:hidden;box-shadow:0 0 0 1px var(--line);position:relative}.srcfig img{display:block;width:100%}
 .srcfig figcaption{padding:8px 12px;font-size:12px;line-height:16px;color:var(--mute)}
 .now{font-size:16px;line-height:24px;margin-top:12px}
+.log{list-style:none;max-height:min(400px,calc(100dvh - 200px));overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:12px;margin-right:-8px;padding-right:8px}
+.log li{font-size:16px;line-height:24px}.log li b{display:block;font-size:12px;line-height:16px;font-weight:500;color:var(--deco)}.log li.you span{color:var(--accent)}
+.log .empty{color:var(--mute)}
 .sep{height:1px;background:var(--line);margin:4px 12px}
 /* switch row: 40 by 24, knob 16 */
 .opt .swt{margin-left:auto;width:40px;height:24px;border-radius:99px;background:var(--w16);position:relative;flex:none;transition:background-color .2s var(--ease-out)}
@@ -202,15 +215,15 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .seg button[aria-checked=true]{background:var(--w16);color:var(--ink)}
 .seg button:focus-visible{outline-offset:-2px}
 @media (max-width:820px){.side-info{display:none}}
-@media (max-width:640px){:root{--orb:min(96vw,48vh);--g:16px}#captions{font-size:16px;line-height:24px}#gate h1{font-size:40px;line-height:48px}
-  body:not(.started) #orbBox{top:calc(50% + 40px)}#gate .ghead{top:96px;transform:translateX(-50%)}#gate .gctl{top:calc(50% + 40px + var(--orb)*.41 + 40px)}}
-@media (max-width:480px){header .logo b,header .logo span{display:none}#shortcuts{width:100%;overflow-x:auto;scrollbar-width:none;mask-image:linear-gradient(90deg,var(--black) 88%,transparent);-webkit-mask-image:linear-gradient(90deg,var(--black) 88%,transparent)}#shortcuts::-webkit-scrollbar{display:none}.chip{flex:none}.chip span{overflow:visible}}
+@media (max-width:640px){:root{--orb:min(96vw,48vh);--g:16px}#captions{font-size:16px;line-height:24px}#gate h1{font-size:40px;line-height:48px}}
+@media (max-width:480px){#gate .hp span{display:none}header .logo b,header .logo span{display:none}#shortcuts{width:100%;overflow-x:auto;scrollbar-width:none;mask-image:linear-gradient(90deg,var(--black) 88%,transparent);-webkit-mask-image:linear-gradient(90deg,var(--black) 88%,transparent)}#shortcuts::-webkit-scrollbar{display:none}.chip{flex:none}.chip span{overflow:visible}}
 @media (prefers-reduced-motion:reduce){*{transition-duration:0s!important}}
 </style>
 </head>
 <body>
 <p class="sr" id="srStatus" role="status" aria-live="polite"></p>
 <canvas id="fx" aria-hidden="true"></canvas>
+<canvas id="sky" aria-hidden="true"></canvas>
 <div id="orbBox" aria-hidden="true"></div>
 <div id="globeBox" class="off" aria-hidden="true"></div>
 <div class="pinLabel" id="pinLabel" hidden></div>
@@ -223,6 +236,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
     <div id="menu" class="drop morph" hidden>
       <div class="view mv" id="mv-main" role="menu" aria-label="More">
         <button role="menuitem" data-act="src">NASA source <span class="go"><kbd>N</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button role="menuitem" data-act="log">Transcript <span class="go"><kbd>T</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="keys">Keyboard shortcuts <span class="go"><kbd>?</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <div class="sep" role="separator"></div>
         <button role="menuitem" data-act="end" id="endBtn">End the conversation <kbd>R</kbd></button>
@@ -233,6 +247,10 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
         <figure class="srcfig"><img id="srcImg" alt=""><div class="mk" id="srcMk"></div><figcaption id="srcCap"></figcaption></figure>
         <p class="now" id="srcNow"></p>
         <p style="margin-top:12px"><a class="pill noKey" id="srcLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></p>
+      </section>
+      <section class="view mv" id="mv-log" aria-labelledby="logT" hidden>
+        <div class="vhead"><button class="back" data-back aria-label="Back to More"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h2 id="logT">Transcript</h2></div>
+        <ol class="log" id="logList"></ol>
       </section>
       <section class="view mv" id="mv-keys" aria-labelledby="keysT" hidden>
         <div class="vhead"><button class="back" data-back aria-label="Back to More"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h2 id="keysT">Keyboard shortcuts</h2></div>
@@ -247,6 +265,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
           <kbd>N</kbd><span>NASA source</span>
           <kbd>/</kbd><span>Type to Juke</span>
           <kbd>?</kbd><span>This list</span>
+          <kbd>T</kbd><span>Transcript</span>
           <kbd>Esc</kbd><span>Close</span>
         </div>
         <p class="hint" style="margin-top:14px">Press and hold the globe to open Options. Click the logo to pause, play again, or go to My place.</p>
@@ -261,7 +280,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
   <div id="trayBody"></div>
 </div>
 
-<div id="captions" aria-live="polite"></div>
+<div id="captions" aria-hidden="true"></div>
+<p class="sr" id="srCap" aria-live="polite"></p>
 
 <section class="side-info" id="playerWrap" hidden aria-label="Now playing">
   <div id="player">
@@ -287,8 +307,9 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 </div>
 
 <div id="gate" role="dialog" aria-modal="true" aria-labelledby="gt" aria-describedby="gd">
-  <div class="ghead"><h1 id="gt"></h1><p id="gd"></p><p class="hp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1"/><rect x="17" y="14" width="4" height="7" rx="1"/></svg>Best with headphones</p></div>
-  <div class="gctl">
+  <p class="hp rv" style="--d:.5s"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1"/><rect x="17" y="14" width="4" height="7" rx="1"/></svg><span>Best with headphones</span></p>
+  <div class="ghead"><h1 id="gt"></h1><p id="gd" class="rv" style="--d:.32s"></p></div>
+  <div class="gctl rv" style="--d:.56s">
     <button class="cta" id="start" autofocus>Start talking <kbd>Enter</kbd></button>
     <button class="link" id="startTyping">Can't talk right now? Type instead <kbd>T</kbd></button>
   </div>
@@ -352,6 +373,29 @@ function drawBg(){const w=innerWidth,h=innerHeight;ringsC.width=starsC.width=w;r
   sx.fillStyle='#000';sx.fillRect(0,0,w,h);let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
   for(let i=0;i<420;i++){const r=rnd();sx.fillStyle=`rgba(243,231,216,${r>.9?.64:r>.6?.4:.16})`;sx.beginPath();sx.arc(rnd()*w,rnd()*h,r>.97?1.3:r>.85?.9:.6,0,7);sx.fill();}
   upload();}
+
+/* ================= sky: real constellation shapes (no lines, no names) and twinkling stars, kept out of every area with content ================= */
+const sky=$('#sky'),kx=sky.getContext('2d');
+const CONS=[{w:200,h:88,p:[[0,.2],[.04,.62],[.34,.72],[.38,.32],[.58,.22],[.8,.12],[1,.3]]},/* Big Dipper */
+  {w:136,h:72,p:[[0,.15],[.27,.8],[.5,.4],[.73,.95],[1,.05]]},/* Cassiopeia */
+  {w:120,h:168,p:[[.15,.05],[.82,.12],[.5,0],[.37,.5],[.47,.48],[.57,.46],[.22,.95],[.86,.9]]},/* Orion */
+  {w:80,h:112,p:[[.5,0],[.5,1],[0,.45],[.95,.38],[.62,.6]]}];/* Southern Cross */
+let skyStars=[],skyT=0;
+function keepOut(){const z=[[0,0,innerWidth,96]];const add=el=>{if(!el||el.hidden||getComputedStyle(el).display==='none')return;const r=el.getBoundingClientRect();if(r.width)z.push([r.left-24,r.top-24,r.right+24,r.bottom+24]);};
+  ['#dock','#captions','#playerWrap','#sourceWrap'].forEach(q=>add($(q)));if(!started)['#gate .ghead','#gate .gctl','#gate .hp'].forEach(q=>add($(q)));
+  const o=box.getBoundingClientRect(),cx=o.left+o.width/2,cy=o.top+o.height/2,rr=o.width*.5+24;z.push([cx-rr,cy-rr,cx+rr,cy+rr]);return z;}
+const hits=(r,z)=>z.some(q=>r[0]<q[2]&&r[2]>q[0]&&r[1]<q[3]&&r[3]>q[1]);
+function drawSky(relayout){const dpr=Math.min(devicePixelRatio,2),W=innerWidth,H=innerHeight;
+  if(relayout){sky.width=W*dpr;sky.height=H*dpr;kx.setTransform(dpr,0,0,dpr,0,0);const z=keepOut();skyStars=[];let seed=11;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+    const spots=[[.06,.58],[.80,.62],[.10,.30],[.78,.30],[.30,.78],[.62,.80],[.04,.80],[.86,.82]];let ci=0;
+    for(const [fx,fy] of spots){if(ci>=CONS.length)break;const c=CONS[ci];const x=fx*W,y=fy*H,r=[x,y,x+c.w,y+c.h];if(x+c.w>W-16||y+c.h>H-16||hits(r,z))continue;c.p.forEach(([a,b])=>skyStars.push({x:x+a*c.w,y:y+b*c.h,r:1.4,base:.4,lit:-9}));ci++;}
+    for(let i=0;i<64;i++){const x=rnd()*W,y=rnd()*H;if(hits([x-4,y-4,x+4,y+4],z))continue;skyStars.push({x,y,r:.9,base:.16,lit:-9});}}
+  skyFrame(performance.now()/1000,true);}
+function skyFrame(t,force){if(!force&&(reduce||t-skyT<1/30))return;skyT=t;kx.clearRect(0,0,innerWidth,innerHeight);
+  if(!reduce&&skyStars.length&&Math.random()<.06)skyStars[Math.floor(Math.random()*skyStars.length)].lit=t;
+  for(const st of skyStars){const a=t-st.lit,g=a>=0&&a<1.6?Math.sin(Math.PI*a/1.6):0;const al=st.base+(.64-st.base)*g;
+    if(g>.05){const hr=st.r*6;const gr=kx.createRadialGradient(st.x,st.y,0,st.x,st.y,hr);gr.addColorStop(0,`rgba(243,231,216,${(.16*g).toFixed(3)})`);gr.addColorStop(1,'rgba(243,231,216,0)');kx.fillStyle=gr;kx.beginPath();kx.arc(st.x,st.y,hr,0,7);kx.fill();}
+    kx.fillStyle=`rgba(243,231,216,${al.toFixed(3)})`;kx.beginPath();kx.arc(st.x,st.y,st.r,0,7);kx.fill();}}
 
 /* ================= force field ================= */
 const cv=$('#fx'),gl=cv.getContext('webgl');let texR,texS,uni={};
@@ -445,6 +489,10 @@ function buildLandTex(){const c=document.createElement('canvas');c.width=720;c.h
 const gMat=new THREE.ShaderMaterial({uniforms:{map:{value:null},depth:{value:0},light:{value:0}},
   vertexShader:`uniform sampler2D map;uniform float depth;varying vec2 vUv;varying vec3 vW;void main(){vUv=uv;vec3 c=texture2D(map,uv).rgb;float h=dot(c,vec3(.3,.59,.11));vec4 w=modelMatrix*vec4(position+normal*h*depth,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
   fragmentShader:`uniform sampler2D map;uniform float light;varying vec2 vUv;varying vec3 vW;void main(){vec3 c=texture2D(map,vUv).rgb;vec3 n=normalize(cross(dFdx(vW),dFdy(vW)));float l=max(dot(n,normalize(vec3(-.45,.55,1.))),0.);c*=mix(1.,.35+.85*l,light);gl_FragColor=vec4(c,1.);}`});
+/* soft glow around the realistic globe: an accent halo that fades out from the edge, with no hard line. Stops use the opacity steps */
+const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');const gr=g.createRadialGradient(128,128,0,128,128,128);
+  gr.addColorStop(0,'rgba(255,255,255,0)');gr.addColorStop(.7,'rgba(255,255,255,.4)');gr.addColorStop(.78,'rgba(255,255,255,.16)');gr.addColorStop(.88,'rgba(255,255,255,.04)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,256,256);return new THREE.CanvasTexture(c);})();
+const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));glow.scale.setScalar(RO*2/.7);glow.renderOrder=-1;vscene.add(glow);
 const globe=new THREE.Mesh(new THREE.SphereGeometry(RO,256,128),gMat);vscene.add(globe);
 const gRing=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff}));const gRing2=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff,transparent:true}));vscene.add(gRing,gRing2);
 
@@ -453,6 +501,7 @@ function sizeGlobe(){const w=gbox.clientWidth;vr.setSize(w,w,false);}
 function drawGlobe(t,sW,sM){O.tint.lerp(O.tintT,.15);globe.rotation.set(O.glat*D2R,-(O.glon+90)*D2R,0,'XYZ');
   gMat.uniforms.depth.value=O.gdepth*.12;gMat.uniforms.light.value=O.gdepth;globe.scale.setScalar(reduce?1:1+sW*.025+sM*.02);
   const front=O.behaviour!=='spin';const pc=O.tint.clone().lerp(WHITE,.4);[gRing,gRing2].forEach((g,j)=>{g.visible=front;g.position.set(0,0,RO*1.004+O.gdepth*.12);g.lookAt(0,0,5);const ph=(t*1.4)%1;g.scale.setScalar(j===0?.075+sM*.03:.075+ph*.12);g.material.color.copy(pc);if(j)g.material.opacity=.7*(1-ph);});
+  glow.material.color.copy(O.tint);glow.material.opacity=.64+smoothM*.36;glow.scale.setScalar(RO*2/.7*(1+O.gdepth*.08));
   vr.render(vscene,vcam);placeLabel(front?{x:0,y:0}:null,gbox);}
 const isReal=()=>O.style.startsWith('real');
 function setGlobeStyle(s){if(!GLOBES[s])return;O.style=s;const real=isReal();box.classList.toggle('off',real);gbox.classList.toggle('off',!real);if(real){setGlobeTex(cur.rec);sizeGlobe();}loadBright(cur.rec);syncOpts();}
@@ -475,11 +524,20 @@ function frame(now){const t=(now-t0)/1000,dpr=Math.min(devicePixelRatio,2);
   const r=box.getBoundingClientRect();
   gl.uniform2f(uni.R,cv.width,cv.height);gl.uniform1f(uni.t,t);gl.uniform2f(uni.C,(r.left+r.width/2)*dpr,cv.height-(r.top+r.height/2)*dpr);
   gl.uniform1f(uni.SR,r.width/2*.69*dpr);gl.uniform4fv(uni.W,W);gl.uniform1f(uni.U,S.user);gl.uniform1f(uni.K,S.think);gl.uniform1f(uni.RD,reduce?1:0);gl.uniform3fv(uni.AC,S.acs);
-  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);drawLogo(t,Math.max(S.agent,S.user,S.music*1.3));
+  skyFrame(t+t0/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);drawLogo(t,Math.max(S.agent,S.user,S.music*1.3));
   updView(t);O.split+=((started?0:(reduce?.26:.26+.05*Math.sin(t*2.2)))-O.split)*(started?.06:.2);
   O.depth+=((O.style==='linesDepth'?1:0)-O.depth)*.08;O.gdepth+=((O.style==='realDepth'?1:0)-O.gdepth)*.08;
   if(isReal())drawGlobe(t,smoothW,smoothM);else drawOrb(t,smoothW,smoothM);requestAnimationFrame(frame);}
-addEventListener('resize',()=>{resizeFx();sizeOrb();sizeGlobe();if(trayOpen())sizeTray(true);});resizeFx();sizeOrb();sizeGlobe();requestAnimationFrame(frame);
+/* layoutStage: the orb stays in the exact centre. Its size is the largest that leaves 40 px to the header above and room for two caption lines plus 40 px gaps below.
+   On the start screen the heading and the buttons must also fit, so the orb is scaled down there and grows on Start. */
+function layoutStage(){const W=innerWidth,H=innerHeight,ph=W<=640,hdr=80,dockTop=H-24-48-8-40,capH=ph?72:88,k=.41;
+  let app=Math.min(W*(ph?.96:.72),(dockTop-40-capH-40-H/2)/k,(H/2-hdr-40)/k);app=Math.max(160,Math.floor(app/8)*8);
+  const gh=$('#gate .ghead'),gc=$('#gate .gctl');const ghH=gh.offsetHeight,gcH=gc.offsetHeight;
+  let gate=Math.min(app,(H/2-hdr-40-ghH-40)/k,(H-24-gcH-40-H/2)/k);gate=Math.max(120,gate);
+  const R=document.documentElement.style;R.setProperty('--orb',app+'px');R.setProperty('--gs',(gate/app).toFixed(3));
+  gh.style.top=Math.max(hdr+16,Math.round(H/2-gate*k-40-ghH))+'px';gc.style.top=Math.round(H/2+gate*k+40)+'px';
+  sizeOrb();sizeGlobe();if(started)layoutCaptions();}
+addEventListener('resize',()=>{resizeFx();layoutStage();drawSky(true);if(trayOpen())sizeTray(true);});resizeFx();requestAnimationFrame(frame);
 
 /* ================= instruments ================= */
 let AC,music,an,adata;
@@ -599,14 +657,26 @@ const tools={
 
 /* ================= conversation ================= */
 let conv=null,raf=0,quietSince=0,captionT=null,pending=[],connecting=false;
-function caption(who,text,again){const c=$('#captions');c.style.opacity=1;c.innerHTML=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="pill again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;if(again)$('#againBtn').onclick=talkAgain;fitCaption();clearTimeout(captionT);if(!again)captionT=setTimeout(()=>c.style.opacity=.35,9000);if(who==='you')activity();
-  if(who==='juke'&&/\b(19[89]\d|20[0-2]\d)\b/.test(text))flashYear();}
+/* captions show only the latest sentence (two lines at most). Each new sentence blurs in over the old one.
+   About 6 s after Juke stops talking, the caption fades out. Screen readers get each full message in #srCap. The full record is in More, Transcript (T). */
+const LOG=[];let capQ=[],capTimer=null;
+function splitSentences(t){return (t.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g)||[t]).map(x=>x.trim()).filter(Boolean);}
+function showLine(who,text,again){const c=$('#captions');c.style.opacity=1;const html=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="pill again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;
+  const old=c.querySelector('.line');const put=()=>{c.innerHTML=`<div class="line swap">${html}</div>`;if(again)$('#againBtn').onclick=talkAgain;fitCaption();requestAnimationFrame(()=>c.querySelector('.line')?.classList.remove('swap'));};
+  if(old&&!reduce){old.classList.add('swap');setTimeout(put,160);}else put();}
+function scheduleFade(ms=6000){clearTimeout(captionT);captionT=setTimeout(()=>{if(!$('#againBtn'))$('#captions').style.opacity=0;},ms);}
+function caption(who,text,again){clearTimeout(capTimer);capQ=[];clearTimeout(captionT);
+  LOG.push({who,text});if(LOG.length>200)LOG.shift();if(!$('#menu').hidden&&menuView==='log')renderLog();$('#srCap').textContent=`${who==='you'?'You':'Juke'}: ${text}`;
+  if(who==='you')activity();if(who==='juke'&&/\b(19[89]\d|20[0-2]\d)\b/.test(text))flashYear();
+  if(again||who==='you'){showLine(who,text,again);if(!again)scheduleFade();return;}
+  capQ=splitSentences(text);const next=()=>{const line=capQ.shift();if(!line)return;showLine('juke',line);if(capQ.length)capTimer=setTimeout(next,Math.max(1600,line.length*62));else if(S.mode!=='speaking')scheduleFade();};next();}
+function renderLog(){const l=$('#logList');l.innerHTML=LOG.length?LOG.map(m=>`<li class="${m.who}"><b>${m.who==='you'?'You':'Juke'}</b><span>${m.text.replace(/</g,'&lt;')}</span></li>`).join(''):'<li class="empty">Nothing yet. Talk to Juke, and the conversation appears here.</li>';l.scrollTop=l.scrollHeight;}
 /* captions live between the globe and the dock; long lines fade out at the top */
 function layoutCaptions(){const r=box.getBoundingClientRect();const top=r.top+r.height/2+r.height*.41+40;const d=$('#dock');const bottom=d.hidden?innerHeight-40:d.getBoundingClientRect().top-40;const c=$('#captions');c.style.top=top+'px';c.style.height=Math.max(44,bottom-top)+'px';fitCaption();}
 function fitCaption(){const c=$('#captions');c.classList.remove('over');c.classList.toggle('over',c.scrollHeight>c.clientHeight+1);}
 addEventListener('resize',layoutCaptions);
 function closeGate(){const g=$('#gate');if(g.hidden)return;g.classList.add('out');setTimeout(()=>g.hidden=true,reduce?0:260);}
-function reveal(){started=true;document.body.classList.add('started');$('header').inert=false;closeGate();setTimeout(layoutCaptions,650);$('#dock').hidden=false;applyLayout();updPlayer();setIcon();layoutCaptions();}
+function reveal(){started=true;document.body.classList.add('started');$('header').inert=false;closeGate();setTimeout(()=>{layoutCaptions();drawSky(true);},650);$('#dock').hidden=false;applyLayout();updPlayer();setIcon();layoutCaptions();}
 /* quiet watch: after 45 s with no word, typing, click or music, Juke says it will pause, then the app ends the call and offers Talk again (R) */
 let lastAct=performance.now(),warnedAt=0,lastOpts={},endedBy=null;
 function activity(){lastAct=performance.now();warnedAt=0;}
@@ -619,12 +689,14 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
   if(!home){home=await locate();}goHome();
   setState('processing','Connecting to Juke');
   try{const {Conversation}=await import('https://esm.sh/@elevenlabs/client@1.32.1');
-    const cfg={agentId:AGENT_ID,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
+    /* ask our server for a short-lived token (the API key stays on the server). If there is no server or no key, use the public agent id */
+    let auth={agentId:AGENT_ID};try{const r=await fetch(`/api/token?type=${opts.textOnly?'ws':'webrtc'}`,{cache:'no-store'});if(r.ok){const j=await r.json();if(j.token)auth={conversationToken:j.token};else if(j.signedUrl)auth={signedUrl:j.signedUrl};}}catch(_){}
+    const cfg={...auth,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
       onConnect:()=>{setState('listening','Listening');$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
         if(why==='quiet')caption('juke','I paused because it was quiet.',true);else if(why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
-      onModeChange:({mode})=>{if(mode==='speaking'){if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);}},
+      onModeChange:({mode})=>{if(mode==='speaking'){clearTimeout(captionT);$('#captions').style.opacity=1;if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);if(!capQ.length)scheduleFade();}},
       onMessage:({message,source})=>caption(source==='user'?'you':'juke',message)};
-    if(opts.textOnly)cfg.textOnly=true;else cfg.connectionType='webrtc';if(cur.voice)cfg.overrides={tts:{voiceId:cur.voice}};
+    if(opts.textOnly)cfg.textOnly=true;else cfg.connectionType='webrtc';if(cfg.signedUrl)cfg.connectionType='websocket';if(cur.voice)cfg.overrides={tts:{voiceId:cur.voice}};
     conv=await Conversation.startSession(cfg);connecting=false;pending.splice(0).forEach(m=>conv.sendUserMessage(m));
     const loop=()=>{if(!opts.textOnly&&conv){S.user=Math.min(1,conv.getInputVolume()*2.2);S.agent=Math.min(1,conv.getOutputVolume()*2.2);}
       if(S.mode==='listening'){if(S.user>.12){S.userSpoke=1;quietSince=performance.now();}else if(S.userSpoke&&performance.now()-quietSince>700){S.userSpoke=0;setState('processing','Thinking');}}raf=requestAnimationFrame(loop);};loop();
@@ -676,7 +748,7 @@ function morphTo(wrap,from,to,dir,instant,fixW){if(from===to)return;clearTimeout
   to.style.transform='';to.style.opacity='';to.style.filter='';
   wrap._mt=setTimeout(()=>{from.hidden=true;from.classList.remove('leaving');from.style.cssText='';},320);}
 let lastFocus=null,openedAt=0,menuView='main';
-const VIEWS=['main','src','keys'];
+const VIEWS=['main','src','log','keys'];
 function closeTray(instant){const t=$('#opts');if(t.hidden)return false;hide(t,instant);$('#optsBtn').setAttribute('aria-expanded','false');return true;}
 function closeMenu(instant){const m=$('#menu');if(m.hidden)return false;hide(m,instant);$('#moreBtn').setAttribute('aria-expanded','false');return true;}
 function closePanels(kbd){const any=closeTray(kbd)|closeMenu(kbd);if(any&&lastFocus&&document.contains(lastFocus))lastFocus.focus();return !!any;}
@@ -691,9 +763,9 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
-['src','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
+['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
   $('#srcImg').src=r.img;$('#srcImg').alt=`NASA picture: ${r.name}. The ring marks ${fullPlace()}.`;$('#srcLink').href=`${SVS}${r.svs}/`;placeMk('#srcMk',r);
   $('#srcCap').textContent=r.map?`The ring marks ${fullPlace()}. Its position is close, not exact, in this prototype.`:'This picture is a view from above the pole, so the place is not marked.';
@@ -781,6 +853,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='n')openMenu('src',true);
   if(k==='r'&&!conv&&!connecting)talkAgain();
   if(k==='?'||(k==='/'&&e.shiftKey))openMenu('keys',true);else if(k==='/'){e.preventDefault();closePanels(true);$('#typeIn').focus();}
+  if(k==='t'){renderLog();openMenu('log',true);}
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
@@ -791,9 +864,12 @@ const HERO=[['Listen to the <em>planet</em>.',"Juke plays NASA's view of Earth a
  ['Talk to the <em>planet</em>.','Ask Juke about the sea, the air or the ice. You hear NASA data as music, and Juke explains every note.'],
  ['Hear your place <em>change</em>.','One note for each year since 1981, from NASA pictures of Earth. Juke starts where you are and explains what you hear.'],
  ['Earth, played as <em>music</em>.','Talk with Juke, pick the sea, the air or the ice, and hear how your part of the world changed.']];
-{const h=HERO[(+new URLSearchParams(location.search).get('hero')||1)-1]||HERO[0];$('#gt').innerHTML=h[0];$('#gd').textContent=h[1];}
+{const h=HERO[(+new URLSearchParams(location.search).get('hero')||1)-1]||HERO[0];
+  /* split the heading into words so they arrive one after another, like Linear's hero */
+  const tmp=document.createElement('div');tmp.innerHTML=h[0];let i=0;$('#gt').innerHTML=[...tmp.childNodes].flatMap(n=>n.nodeType===3?n.textContent.split(/(\s+)/).filter(Boolean).map(w=>/^\s+$/.test(w)?w:`<span class="rv" style="--d:${(.08+(i++)*.06).toFixed(2)}s">${w}</span>`):[`<span class="rv" style="--d:${(.08+(i++)*.06).toFixed(2)}s">${n.outerHTML}</span>`]).join('');$('#gt').setAttribute('aria-label',tmp.textContent);$('#gd').textContent=h[1];}
+layoutStage();(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>{layoutStage();drawSky(true);requestAnimationFrame(()=>document.body.classList.add('ready'));});
 drawShortcuts();updSrc();setRecordColours('sst');loadBright('sst');
-window.__jb={tools,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
+window.__jb={tools,layoutStage,drawSky,LOG,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
 </script>
 </body>
 </html>
