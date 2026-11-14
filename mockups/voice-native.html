@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Earth Jukebox</title>
+<link rel="icon" id="fav" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 14v4m6-10v16m6-21v26m6-20v14m6-10v6' stroke='%235fd0e0' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+@font-face{font-family:Geist;src:url(fonts/geist/Geist-Variable.woff2) format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url(fonts/geist/GeistMono-Variable.woff2) format('woff2');font-weight:100 900;font-display:swap}
+:root{
+  /* colour: black, white, primary and accent only. Opacity steps: 100, 64, 40, 16, 4, 0 */
+  --k:11 8 7;--w:243 231 216;--a:95 208 224;
+  --black:rgb(var(--k));--white:rgb(var(--w));--primary:var(--white);--accent:rgb(var(--a));--on-accent:var(--black);
+  --w64:rgb(var(--w)/.64);--w40:rgb(var(--w)/.4);--w16:rgb(var(--w)/.16);--w4:rgb(var(--w)/.04);
+  --k64:rgb(var(--k)/.64);--k40:rgb(var(--k)/.4);
+  --bgt:color-mix(in srgb,var(--accent) 4%,var(--black));--panel:var(--bgt);
+  /* text roles: 100 headings and transcript, 64 paragraphs, 40 decoration only, 16 disabled */
+  --ink:var(--primary);--mute:var(--w64);--deco:var(--w40);--line:var(--w16);
+  /* 8-point scale: 4, 8, 12, 16, 24, 32, 40, 48, 56, 64. Strokes of 1 and 2 px are the only exceptions */
+  --orb:min(72vw,60vh);--g:24px;
+  --ease-out:cubic-bezier(0.23,1,0.32,1);--ease-in-out:cubic-bezier(0.77,0,0.175,1);--ease-drawer:cubic-bezier(0.32,0.72,0,1)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px}
+html,body{height:100%;background:var(--bgt);color:var(--ink);font-family:Geist,system-ui,sans-serif;font-size:16px;line-height:24px;overflow:hidden}
+button,input,a,select{font:inherit;color:inherit}
+button{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--accent);outline-offset:4px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[hidden]{display:none!important}
+.instant,.instant *{transition:none!important}
+/* keys: 24 high, 12 px text. The 1 px outline is inset, so it does not change the size */
+kbd{font:500 12px/16px 'Geist Mono',monospace;min-width:24px;height:24px;padding:0 4px;border-radius:4px;box-shadow:inset 0 0 0 1px var(--line);display:inline-grid;place-items:center;color:var(--deco);background:var(--w4);flex:none}
+/* inset rule: a key inside a pill is a pill too */
+.pill kbd,.chip kbd,.cta kbd,.link kbd{border-radius:99px}
+
+/* press feedback (Emil): scale on :active, hover only on real pointers. The logo has its own press. */
+.pill,.chip,.cta,.iconbtn,.opt,.tab,.sendBtn,.link{transition:transform .16s var(--ease-out),background-color .16s var(--ease-out),color .16s var(--ease-out)}
+.pill:active,.chip:active,.cta:active,.iconbtn:active,.sendBtn:active{transform:scale(.97)}
+@media (hover:hover) and (pointer:fine){
+  .pill:hover,.chip:hover{background:var(--w4)}
+  .opt:hover{background:var(--w4)}
+  .tab:hover{color:var(--ink)}
+  .ghost:hover,.link:hover{color:var(--ink)}}
+
+#fx{position:fixed;inset:0;width:100vw;height:100vh;display:block}
+#orbBox,#globeBox{position:fixed;left:50%;top:50%;width:var(--orb);height:var(--orb);transform:translate(-50%,-50%);transition:opacity .5s var(--ease-out),transform .5s var(--ease-out),top .6s var(--ease-drawer)}
+/* in the app the globe sits 88 px above the middle, so the captions have room between it and the dock */
+body.started #orbBox,body.started #globeBox{top:calc(50% - 88px)}
+#orbBox.off,#globeBox.off{opacity:0;transform:translate(-50%,-50%) scale(.94);pointer-events:none}
+#orbBox canvas,#globeBox canvas{display:block;width:100%;height:100%}
+.pinLabel{position:fixed;pointer-events:none;font-size:12px;line-height:16px;white-space:nowrap;transform:translate(16px,-50%);text-shadow:0 0 8px var(--black);z-index:6}
+.pinLabel small{display:block;color:var(--mute);font-size:12px;line-height:16px}
+
+/* header: one header for the start screen and the app, so the logo never moves */
+header{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:16px var(--g);z-index:21}
+.logo{display:inline-flex;align-items:center;gap:8px;letter-spacing:.16em;font-size:16px;line-height:24px;text-transform:uppercase;text-decoration:none}
+.logo svg{width:24px;height:24px;color:var(--accent);overflow:visible}
+.logo b{font-weight:700}.logo span{font-weight:300}
+#logoBtn{border:0;background:none;cursor:pointer;padding:12px;margin:-12px;min-height:48px}
+.hbtns{display:flex;gap:8px;position:relative;transition:opacity .3s var(--ease-out)}
+body:not(.started) .hbtns{visibility:hidden;opacity:0}
+/* pills: 48 high. Key 24 high, so 12 px on every side of the key */
+.pill{border:0;box-shadow:inset 0 0 0 1px var(--line);background:var(--k64);backdrop-filter:blur(8px);border-radius:99px;padding:12px 12px 12px 16px;font-size:16px;line-height:24px;font-weight:500;cursor:pointer;min-height:48px;display:inline-flex;gap:8px;align-items:center;text-decoration:none}
+.pill.noKey{padding:12px 16px}
+.pill svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+.pill[aria-expanded=true]{background:var(--w4)}
+
+/* dropdowns: the More menu and the Options tray grow from their button */
+.drop{position:absolute;right:0;top:56px;background:var(--panel);box-shadow:inset 0 0 0 1px var(--line);border-radius:0;transform-origin:top right;opacity:0;transform:scale(.96);transition:opacity .14s var(--ease-out),transform .14s var(--ease-out)}
+.drop.in{opacity:1;transform:none;transition-duration:.2s}
+#menu{padding:0}
+#mv-main button{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;width:100%;padding:12px;border:0;background:transparent;cursor:pointer;font-size:16px;line-height:24px;text-align:left;min-height:48px}
+@media (hover:hover) and (pointer:fine){#mv-main button:hover{background:var(--w4)}}
+#mv-main button:focus-visible{background:var(--w4);outline-offset:-2px}
+
+#opts{position:fixed;top:72px;right:var(--g);left:auto;z-index:22;width:min(400px,calc(100vw - 32px));display:flex;flex-direction:column}
+.trayHead{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 12px 0 16px}
+.trayHead h2{font-size:16px;line-height:24px;font-weight:500}
+#tabs{display:flex;overflow-x:auto;mask-image:linear-gradient(90deg,var(--black) 84%,transparent);-webkit-mask-image:linear-gradient(90deg,var(--black) 84%,transparent);padding:4px 8px 0;border-bottom:1px solid var(--line);scrollbar-width:none}
+#tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;border:0;background:none;padding:12px 8px;font-size:16px;line-height:24px;color:var(--mute);cursor:pointer;position:relative;min-height:48px}
+.tab[aria-selected=true]{color:var(--ink)}
+.tab::after{content:"";position:absolute;left:8px;right:8px;bottom:-1px;height:2px;background:var(--accent);transform:scaleX(0);transition:transform .2s var(--ease-out)}
+.tab[aria-selected=true]::after{transform:scaleX(1)}
+.tab:focus-visible{outline-offset:-4px}
+#trayBody{position:relative;overflow:auto;overscroll-behavior:contain;transition:height .3s var(--ease-drawer);max-height:calc(100dvh - 192px)}
+.tp{padding:8px}
+.tp:focus-visible{outline-offset:-2px}
+.tp .note{font-size:12px;line-height:16px;color:var(--mute);padding:8px 12px 12px}
+/* list rows: icons top-aligned with the first line */
+.opt{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;border:0;background:transparent;padding:12px;min-height:48px;cursor:pointer;font-size:16px;line-height:24px}
+.opt:focus-visible{outline-offset:-2px}
+.opt small{display:block;color:var(--mute);font-size:12px;line-height:16px;margin-top:4px}
+.opt img{width:64px;height:32px;object-fit:cover;flex:none;box-shadow:0 0 0 1px var(--line)}
+.opt .ck{margin:4px 0 0 auto;width:16px;height:16px;flex:none;stroke:var(--accent);fill:none;stroke-width:2.2;opacity:0;transform:scale(.8);transition:opacity .16s var(--ease-out),transform .16s var(--ease-out)}
+.opt[aria-pressed=true]{background:var(--w4)}
+.opt[aria-pressed=true] .ck{opacity:1;transform:none}
+
+/* captions: max 560 wide, 40 px from the globe and 40 px from the shortcuts */
+#captions{position:fixed;left:50%;top:calc(50% + var(--orb)*.41 + 40px);height:96px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;z-index:5;font-weight:300;font-size:24px;line-height:32px;transition:opacity .5s var(--ease-out);display:flex;flex-direction:column;justify-content:center;overflow:hidden;pointer-events:none}
+#captions.over{justify-content:flex-end;-webkit-mask-image:linear-gradient(180deg,transparent,var(--black) 40%);mask-image:linear-gradient(180deg,transparent,var(--black) 40%)}
+#captions .again{pointer-events:auto;margin:12px auto 0}
+#captions .who{display:block;font-size:12px;line-height:16px;font-weight:500;color:var(--deco);margin-bottom:8px}
+#captions .you{color:var(--accent)}
+
+/* dock */
+#dock{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));z-index:8;display:flex;flex-direction:column;gap:8px}
+#shortcuts{display:flex;gap:8px;width:100%}
+/* chips: 40 high. Key 24 high, so 8 px on every side of the key */
+.chip{flex:1 1 0;min-width:40px;display:flex;gap:8px;align-items:center;border:0;box-shadow:inset 0 0 0 1px var(--line);background:var(--k64);backdrop-filter:blur(8px);border-radius:99px;padding:8px;font-size:16px;line-height:24px;cursor:pointer;min-height:40px;text-align:left;overflow:hidden;transition:flex-grow .24s var(--ease-out),transform .16s var(--ease-out),background-color .16s var(--ease-out)}
+.chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;transition:opacity .16s var(--ease-out)}
+/* hover: the chip under the pointer grows to show its full text, the others shrink to their number */
+@media (hover:hover) and (pointer:fine) and (min-width:481px){
+  #shortcuts:hover .chip{flex-grow:0}#shortcuts:hover .chip span{opacity:0}
+  #shortcuts .chip:hover{flex-grow:1}#shortcuts .chip:hover span{opacity:1}}
+#typeBox{display:flex;gap:8px;align-items:center}
+/* field: 48 high, send button 40, so 4 px around the button */
+.field{flex:1;display:flex;gap:8px;align-items:center;height:48px;padding:0 4px 0 16px;border-radius:99px;background:linear-gradient(180deg,var(--w4),transparent),var(--black);box-shadow:inset 0 1px 0 var(--w4),inset 0 0 0 1px var(--line);transition:box-shadow .16s var(--ease-out)}
+.field svg{width:16px;height:16px;stroke:var(--mute);fill:none;stroke-width:1.8;flex:none}
+.field input{flex:1;min-width:0;background:transparent;border:0;font-size:16px;line-height:24px}
+.field input::placeholder{color:var(--mute)}
+.field input:focus{outline:none}
+.field:focus-within{box-shadow:inset 0 1px 0 var(--w4),inset 0 0 0 2px var(--accent)}
+.field:focus-within svg{stroke:var(--accent)}
+#sendSlot{width:40px;height:40px;flex:none;display:grid;place-items:center}
+.sendBtn{width:40px;height:40px;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;background:var(--black);color:var(--ink)}
+.sendBtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.sendBtn.fallback{background:radial-gradient(circle at 30% 24%,var(--white),var(--w40) 32%,var(--w16) 56%,var(--w64) 88%);padding:2px}
+.sendBtn.fallback span{width:100%;height:100%;border-radius:50%;background:var(--black);display:grid;place-items:center}
+
+/* side information (player and NASA source) */
+.side-info{position:fixed;top:96px;z-index:6;width:min(296px,28vw);font-size:16px;line-height:24px}
+.side-info.left{left:var(--g);text-align:left}
+.side-info.right{right:var(--g);text-align:right}
+#player .yr{font-size:48px;line-height:56px;font-weight:300;letter-spacing:-.03em;margin-bottom:16px;transition:color .3s var(--ease-out)}
+#player .yr.flash{color:var(--accent)}
+#player .ln{color:var(--mute)}#player .ln b{color:var(--ink);font-weight:500}
+#player .val{color:var(--ink);margin-top:8px}
+#player .prog{height:2px;background:var(--line);margin:12px 0;overflow:hidden}#player .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s linear}
+#player .ctl{display:flex;gap:8px;align-items:center}
+#player.right .ctl{justify-content:flex-end}
+.iconbtn{width:40px;height:40px;border-radius:50%;border:0;box-shadow:inset 0 0 0 1px var(--line);background:transparent;display:grid;place-items:center;cursor:pointer}
+.iconbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+.iconbtn.play{background:var(--accent);box-shadow:none}.iconbtn.play svg{fill:var(--on-accent);stroke:none}
+.ghost{background:none;border:0;color:var(--mute);display:inline-flex;gap:8px;align-items:center;cursor:pointer;font-size:16px;line-height:24px;padding:8px 0;text-decoration:none}
+.ghost svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+#source .thumb{position:relative;width:100%;max-width:256px;overflow:hidden;box-shadow:0 0 0 1px var(--line);margin-top:8px;display:inline-block}
+#source .thumb img{display:block;width:100%}
+.mk{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border:2px solid var(--white);border-radius:50%;box-shadow:0 0 0 1px var(--k64)}
+.mk::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--white)}
+#source .t{font-weight:500}#source .m{color:var(--mute)}
+
+/* start screen: the orb waits, split at the centre. The header stays; only its buttons are hidden. */
+#gate{position:fixed;inset:0;z-index:20;pointer-events:none;transition:opacity .25s var(--ease-out)}
+#gate.out{opacity:0}
+#gate .ghead{position:absolute;left:50%;top:calc(50% - var(--orb)*.42 - 40px);transform:translate(-50%,-100%);width:min(680px,calc(100vw - 32px));text-align:center}
+#gate h1{font-weight:300;font-size:64px;line-height:72px;letter-spacing:-.045em}
+#gate h1 em{font-style:normal;color:var(--accent)}
+#gate .ghead p{color:var(--mute);font-size:16px;line-height:24px;margin:16px auto 0;max-width:480px}
+#gate .ghead .hp{display:inline-flex;gap:8px;align-items:flex-start;margin-top:8px;color:var(--mute)}
+#gate .ghead .hp svg{width:16px;height:16px;margin-top:4px;stroke:currentColor;fill:none;stroke-width:1.8;flex:none}
+#gate .gctl{position:absolute;left:50%;top:calc(50% + var(--orb)*.41 + 40px);transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;pointer-events:auto;display:flex;flex-direction:column;align-items:center;gap:8px}
+/* the start button: 56 high, key 32 high, so 12 px on every side of the key */
+.cta{display:inline-flex;gap:16px;align-items:center;padding:12px 12px 12px 24px;border-radius:99px;border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:16px;line-height:24px;cursor:pointer;min-height:56px}
+.cta kbd{box-shadow:inset 0 0 0 1px currentColor;color:inherit;background:transparent;height:32px;min-width:48px;padding:0 8px}
+.link{background:none;border:0;text-decoration:underline;text-underline-offset:4px;cursor:pointer;display:inline-flex;gap:8px;align-items:center;padding:12px;font-size:16px;line-height:24px;color:var(--mute)}
+
+.close{position:absolute;right:16px;top:16px}
+.trayHead .close{position:static}
+.hint{font-size:12px;line-height:16px;color:var(--mute);margin-top:4px}
+.keys{margin-top:16px;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:16px;line-height:24px;align-items:start}
+.keys span{color:var(--mute)}
+
+/* morph: a container changes size, the old view slides out and the new one slides in */
+.morph{overflow:hidden;transition:opacity .14s var(--ease-out),transform .14s var(--ease-out),width .3s var(--ease-drawer),height .3s var(--ease-drawer)}
+.drop.morph.in{transition:opacity .2s var(--ease-out),transform .2s var(--ease-out),width .3s var(--ease-drawer),height .3s var(--ease-drawer)}
+.view{transition:opacity .2s var(--ease-out),transform .3s var(--ease-drawer),filter .2s var(--ease-out)}
+.view.leaving{position:absolute;top:0;left:0;pointer-events:none}
+.view.measure{position:absolute;visibility:hidden;top:0;left:0}
+.tp.measure,.tp.leaving{width:100%}
+.mv{width:256px;padding:4px}
+#mv-src,#mv-keys{width:min(400px,calc(100vw - 32px));padding:12px 16px 16px}
+#menu .go{display:inline-flex;gap:8px;align-items:center;color:var(--mute)}#menu .go svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+.vhead{display:flex;align-items:center;gap:8px;margin:-4px 0 8px -8px}
+.vhead h2{font-size:16px;line-height:24px;font-weight:500;padding:0}
+.back{width:40px;height:40px;border:0;background:none;display:grid;place-items:center;cursor:pointer;color:var(--mute)}
+.back svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+@media (hover:hover) and (pointer:fine){.back:hover{color:var(--ink)}}
+.srcfig{margin-top:8px;overflow:hidden;box-shadow:0 0 0 1px var(--line);position:relative}.srcfig img{display:block;width:100%}
+.srcfig figcaption{padding:8px 12px;font-size:12px;line-height:16px;color:var(--mute)}
+.now{font-size:16px;line-height:24px;margin-top:12px}
+.sep{height:1px;background:var(--line);margin:4px 12px}
+/* switch row: 40 by 24, knob 16 */
+.opt .swt{margin-left:auto;width:40px;height:24px;border-radius:99px;background:var(--w16);position:relative;flex:none;transition:background-color .2s var(--ease-out)}
+.opt .swt::after{content:"";position:absolute;top:4px;left:4px;width:16px;height:16px;border-radius:50%;background:var(--ink);transition:transform .2s var(--ease-out)}
+.opt[aria-checked=true] .swt{background:var(--accent)}.opt[aria-checked=true] .swt::after{transform:translateX(16px);background:var(--on-accent)}
+/* segmented choice */
+.seg-row{padding:12px}.seg-row .lbl{display:block;font-size:16px;line-height:24px;margin-bottom:8px}
+.seg{display:flex;gap:4px;padding:4px;background:var(--w4)}
+.seg button{flex:1;border:0;background:transparent;padding:8px;min-height:40px;font-size:16px;line-height:24px;color:var(--mute);cursor:pointer;transition:background-color .16s var(--ease-out),color .16s var(--ease-out)}
+.seg button[aria-checked=true]{background:var(--w16);color:var(--ink)}
+.seg button:focus-visible{outline-offset:-2px}
+@media (max-width:820px){.side-info{display:none}}
+@media (max-width:640px){:root{--orb:min(96vw,48vh);--g:16px}#captions{font-size:16px;line-height:24px}#gate h1{font-size:40px;line-height:48px}
+  body:not(.started) #orbBox{top:calc(50% + 40px)}#gate .ghead{top:96px;transform:translateX(-50%)}#gate .gctl{top:calc(50% + 40px + var(--orb)*.41 + 40px)}}
+@media (max-width:480px){header .logo b,header .logo span{display:none}#shortcuts{width:100%;overflow-x:auto;scrollbar-width:none;mask-image:linear-gradient(90deg,var(--black) 88%,transparent);-webkit-mask-image:linear-gradient(90deg,var(--black) 88%,transparent)}#shortcuts::-webkit-scrollbar{display:none}.chip{flex:none}.chip span{overflow:visible}}
+@media (prefers-reduced-motion:reduce){*{transition-duration:0s!important}}
+</style>
+</head>
+<body>
+<p class="sr" id="srStatus" role="status" aria-live="polite"></p>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div id="orbBox" aria-hidden="true"></div>
+<div id="globeBox" class="off" aria-hidden="true"></div>
+<div class="pinLabel" id="pinLabel" hidden></div>
+
+<header inert>
+  <button class="logo" id="logoBtn" aria-label="Go to My place" aria-keyshortcuts="H"><svg viewBox="0 0 32 32" aria-hidden="true"><g id="logoBars" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" x2="4" y1="14" y2="18"/><line x1="10" x2="10" y1="8" y2="24"/><line x1="16" x2="16" y1="3" y2="29"/><line x1="22" x2="22" y1="9" y2="23"/><line x1="28" x2="28" y1="13" y2="19"/></g></svg><b>Earth</b><span>Jukebox</span></button>
+  <div class="hbtns">
+    <button class="pill" id="optsBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="opts" aria-keyshortcuts="O"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Options<kbd>O</kbd></button>
+    <button class="pill noKey" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More</button>
+    <div id="menu" class="drop morph" hidden>
+      <div class="view mv" id="mv-main" role="menu" aria-label="More">
+        <button role="menuitem" data-act="src">NASA source <span class="go"><kbd>N</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button role="menuitem" data-act="keys">Keyboard shortcuts <span class="go"><kbd>?</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <div class="sep" role="separator"></div>
+        <button role="menuitem" data-act="end" id="endBtn">End the conversation <kbd>R</kbd></button>
+      </div>
+      <section class="view mv" id="mv-src" aria-labelledby="srcT" hidden>
+        <div class="vhead"><button class="back" data-back aria-label="Back to More"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h2 id="srcT">NASA source</h2></div>
+        <p class="hint" id="srcMeta"></p>
+        <figure class="srcfig"><img id="srcImg" alt=""><div class="mk" id="srcMk"></div><figcaption id="srcCap"></figcaption></figure>
+        <p class="now" id="srcNow"></p>
+        <p style="margin-top:12px"><a class="pill noKey" id="srcLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></p>
+      </section>
+      <section class="view mv" id="mv-keys" aria-labelledby="keysT" hidden>
+        <div class="vhead"><button class="back" data-back aria-label="Back to More"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button><h2 id="keysT">Keyboard shortcuts</h2></div>
+        <div class="keys">
+          <kbd>1</kbd><span>to <kbd>3</kbd> use a shortcut</span>
+          <kbd>←</kbd><span><kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> turn the globe and hear each place. You can also drag it.</span>
+          <kbd>Space</kbd><span>Play or pause</span>
+          <kbd>H</kbd><span>Go to My place</span>
+          <kbd>R</kbd><span>Talk again after a pause</span>
+          <kbd>L</kbd><span>Download what is playing</span>
+          <kbd>O</kbd><span>Options</span>
+          <kbd>N</kbd><span>NASA source</span>
+          <kbd>/</kbd><span>Type to Juke</span>
+          <kbd>?</kbd><span>This list</span>
+          <kbd>Esc</kbd><span>Close</span>
+        </div>
+        <p class="hint" style="margin-top:14px">Press and hold the globe to open Options. Click the logo to pause, play again, or go to My place.</p>
+      </section>
+    </div>
+  </div>
+</header>
+
+<div id="opts" class="drop" role="dialog" aria-modal="false" aria-labelledby="optsT" hidden>
+  <div class="trayHead"><h2 id="optsT">Options</h2><button class="pill close" data-close>Close <kbd>Esc</kbd></button></div>
+  <div id="tabs" role="tablist" aria-label="Options"></div>
+  <div id="trayBody"></div>
+</div>
+
+<div id="captions" aria-live="polite"></div>
+
+<section class="side-info" id="playerWrap" hidden aria-label="Now playing">
+  <div id="player">
+    <div class="yr" id="pYear">Ready</div>
+    <div class="ln" id="pRec"></div>
+    <div class="ln" id="pPlace"></div>
+    <div class="ln" id="pWater"></div>
+    <div class="val" id="pVal"></div>
+    <div class="prog" aria-hidden="true"><i id="pBar"></i></div>
+    <div class="ctl"><button class="iconbtn play" id="pPlay" aria-label="Play" aria-keyshortcuts="Space"><svg viewBox="0 0 24 24" id="pIcon"><path d="M7 4v16l13-8z"/></svg></button><kbd>Space</kbd>
+      <button class="ghost" id="dlBtn" aria-keyshortcuts="L" aria-label="Download what is playing"><svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><kbd>L</kbd></button></div>
+  </div>
+</section>
+<section class="side-info" id="sourceWrap" hidden aria-label="NASA source">
+  <div id="source"><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div>
+</section>
+
+<div id="dock" hidden>
+  <div id="shortcuts" role="group" aria-label="Shortcuts"></div>
+  <form id="typeBox" autocomplete="off">
+    <div class="field"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7"/></svg><label class="sr" for="typeIn">Type to Juke</label><input id="typeIn" placeholder="Type to Juke, or just talk" aria-keyshortcuts="/"><div id="sendSlot"></div></div>
+  </form>
+</div>
+
+<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gt" aria-describedby="gd">
+  <div class="ghead"><h1 id="gt"></h1><p id="gd"></p><p class="hp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="7" rx="1"/><rect x="17" y="14" width="4" height="7" rx="1"/></svg>Best with headphones</p></div>
+  <div class="gctl">
+    <button class="cta" id="start" autofocus>Start talking <kbd>Enter</kbd></button>
+    <button class="link" id="startTyping">Can't talk right now? Type instead <kbd>T</kbd></button>
+  </div>
+</div>
+
+
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const AGENT_ID='agent_4301m7cxc5g6ew78t8x4egjwrb4r';
+const $=s=>document.querySelector(s);
+const D2R=Math.PI/180;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const SVS='https://svs.gsfc.nasa.gov/';
+
+/* ================= data (mock until the pipeline runs) ================= */
+const REC={
+ sst:{name:'Sea surface temperature',short:'the sea',unit:'degrees Celsius',sea:true,min:-2,max:32,svs:5101,img:'data/nasa/sst.jpg',map:true,ramp:['#3f7fe0','#5fd0e0','#f2c060','#ff7a5c'],inst:'strings'},
+ ssta:{name:'Sea surface temperature anomaly',short:'the sea compared with normal',unit:'degrees Celsius above normal',sea:true,min:-3,max:3,svs:5176,img:'data/nasa/ssta.jpg',map:true,ramp:['#5f8fe8','#cfd6dc','#f0a070','#ff5a4a'],inst:'strings'},
+ air:{name:'Near-surface air temperature',short:'the air',unit:'degrees Celsius',sea:false,min:-40,max:45,svs:5147,img:'data/nasa/air.jpg',map:true,ramp:['#8a7cff','#5fc0f0','#f4d36a','#ff6a50'],inst:'flute'},
+ ice:{name:'Polar sea ice',short:'the ice',unit:'percent ice cover',sea:true,min:0,max:100,svs:5099,img:'data/nasa/ice.jpg',map:false,ramp:['#6fa8d0','#a8d8f0','#e6f4fb','#ffffff'],inst:'glass bells'},
+ bio:{name:'Global biosphere',short:'plants and plankton',unit:'index',sea:false,min:0,max:1,svs:5075,img:'data/nasa/bio.jpg',map:true,ramp:['#d0b050','#9fd06a','#4fcf8a','#3fb0a0'],inst:'marimba'},
+ fire:{name:'Active fires',short:'fires',unit:'fires per cell',sea:false,min:0,max:40,svs:5113,img:'data/nasa/fire.jpg',map:true,ramp:['#ff4a3c','#ff8a5c','#ffb070','#ffe08a'],inst:'synth pad'},
+};
+const PLACES={'Vaasa':[63.1,21.6,'Finland'],'Helsinki':[60.2,24.9,'Finland'],'Lagos':[6.45,3.39,'Nigeria'],'Accra':[5.6,-0.2,'Ghana'],'Nairobi':[-1.3,36.8,'Kenya'],'Cairo':[30,31.2,'Egypt'],'Sahara':[23,10,'North Africa'],'London':[51.5,-0.1,'United Kingdom'],'Reykjavik':[64.1,-21.9,'Iceland'],'New York':[40.7,-74,'United States'],'Rio de Janeiro':[-22.9,-43.2,'Brazil'],'Mumbai':[19.1,72.9,'India'],'Tokyo':[35.7,139.7,'Japan'],'Sydney':[-33.9,151.2,'Australia'],'Arctic Ocean':[82,0,''],'Equator':[0,0,'Gulf of Guinea']};
+const INSTRUMENTS=['strings','piano','marimba','flute','glass bells','synth pad'];
+const VOICES=[{n:'Hope',d:'Female, upbeat and clear. The default.',id:''},{n:'Jessica',d:'Female, expressive',id:'cgSgspJ2msm6clMCkdW9'},{n:'Will',d:'Male, friendly',id:'bIHbv24MWmeRgasZH58o'},{n:'Laura',d:'Female, sunny',id:'FGY2WhTYpPnrIDTdsKH5'}];
+const GLOBES={lines:['Lines','The globe in lines. Land is bright, water is faint.'],linesDepth:['Lines with depth','The lines rise where the NASA picture is brighter.'],real:['Realistic','The NASA picture on a globe.'],realDepth:['Realistic with depth','The NASA picture, raised where it is brighter.']};
+const FALLBACK_HOME={name:'Vaasa',country:'Finland',lat:63.1,lon:21.6,fallback:true};
+let home=null;const myPlace=()=>home||FALLBACK_HOME;
+let cur={instMode:'fixed',rec:'sst',place:'Vaasa',country:'Finland',lat:63.1,lon:21.6,isHome:true,last:null,inst:'strings',voice:''};
+const fullPlace=(p=cur)=>p.country?`${p.place}, ${p.country}`:p.place;
+function oceanName(lat,lon){if(lat>66)return 'Arctic Ocean';if(lat<-60)return 'Southern Ocean';
+  if(lat>60&&lat<66&&lon>17&&lon<26)return 'Gulf of Bothnia';if(lat>53&&lat<60&&lon>10&&lon<30)return 'Baltic Sea';if(lat>30&&lat<46&&lon>-6&&lon<36)return 'Mediterranean Sea';
+  if(lat>-6&&lat<7&&lon>-10&&lon<10)return 'Gulf of Guinea';if(lon>-70&&lon<20)return lat>=0?'North Atlantic Ocean':'South Atlantic Ocean';
+  if(lon>=20&&lon<120&&lat<30)return 'Indian Ocean';return lat>=0?'North Pacific Ocean':'South Pacific Ocean';}
+
+/* ================= colour ================= */
+const hex2rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+const toHex=c=>'#'+c.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+const lum=c=>{const l=c.map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*l[0]+.7152*l[1]+.0722*l[2];};
+const contrast=(a,b)=>{const A=lum(a),B=lum(b);return (Math.max(A,B)+.05)/(Math.min(A,B)+.05);};
+const BG=hex2rgb('#0b0807');
+const S={user:0,agent:0,music:0,think:0,mode:'idle',accent:[.37,.82,.88],acs:[.37,.82,.88],waves:[],lastPush:0,userSpoke:0};
+let accentHex='#5fd0e0';
+const WH=hex2rgb('#f3e7d8');
+/* the accent is the only colour that changes. It is lifted until it has 4.5:1 against the background */
+function setAccentRGB(c){let g=0;c=c.slice();const bgt=BG.map((v,i)=>v*.96+c[i]*.04);while(contrast(c,bgt)<4.5&&g++<30)c=c.map(v=>Math.min(1,v+.04));
+  accentHex=toHex(c);const R=document.documentElement.style;R.setProperty('--a',c.map(v=>Math.round(v*255)).join(' '));
+  R.setProperty('--on-accent',contrast(c,BG)>=contrast(c,WH)?'var(--black)':'var(--white)');S.accent=c;}
+function rampRGB(rec,x){const s=REC[rec].ramp.map(hex2rgb);const p=Math.min(2.999,Math.max(0,x*3)),i=Math.floor(p),f=p-i;return s[i].map((c,j)=>c+(s[i+1][j]-c)*f);}
+function setState(m,label){S.mode=m;$('#srStatus').textContent=label;}
+
+/* ================= background: concentric circles (bend with the waves) and still stars ================= */
+const ringsC=document.createElement('canvas'),rx=ringsC.getContext('2d');
+const starsC=document.createElement('canvas'),sx=starsC.getContext('2d');
+function drawBg(){const w=innerWidth,h=innerHeight;ringsC.width=starsC.width=w;ringsC.height=starsC.height=h;
+  rx.fillStyle='#000';rx.fillRect(0,0,w,h);const cx=w/2,cy=h/2;
+  for(let i=0;i<70;i++){rx.beginPath();rx.arc(cx,cy,128+i*16,0,Math.PI*2);rx.strokeStyle="rgba(255,255,255,.04)";rx.lineWidth=i%5===0?2:1;rx.stroke();}
+  sx.fillStyle='#000';sx.fillRect(0,0,w,h);let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  for(let i=0;i<420;i++){const r=rnd();sx.fillStyle=`rgba(243,231,216,${r>.9?.64:r>.6?.4:.16})`;sx.beginPath();sx.arc(rnd()*w,rnd()*h,r>.97?1.3:r>.85?.9:.6,0,7);sx.fill();}
+  upload();}
+
+/* ================= force field ================= */
+const cv=$('#fx'),gl=cv.getContext('webgl');let texR,texS,uni={};
+const FS=`precision highp float;uniform sampler2D T;uniform sampler2D T2;uniform vec2 R;uniform float t;uniform vec2 C;uniform float SR;uniform vec4 W[10];uniform float U,K,RD;uniform vec3 AC;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+void main(){vec2 p=gl_FragCoord.xy;vec2 d=p-C;float dist=length(d);vec2 dir=dist>0.?d/dist:vec2(0);vec2 off=vec2(0);float rim=0.;
+ for(int i=0;i<10;i++){vec4 w=W[i];float age=t-w.x;if(w.y<=0.||age<0.||age>1.8)continue;float Rw=SR*1.05+age*900.;float wd=30.+age*70.;float k=exp(-pow((dist-Rw)/wd,2.))*w.y*pow(1.-age/1.8,2.);off+=dir*k*30.;rim+=k*.12;}
+ float sw=K*.9*exp(-pow((dist-SR*1.25)/(SR*.55),2.));float a=sw*sin(t*1.7+dist*.02);vec2 dr=vec2(cos(a)*d.x-sin(a)*d.y,sin(a)*d.x+cos(a)*d.y)-d;off+=dr*.12;
+ off*=1.-RD;vec2 q=p/R;vec2 uv=(p-off)/R;uv.y=1.-uv.y;
+ float ring=texture2D(T,uv).r;vec3 K=vec3(.043,.031,.027),Wt=vec3(.953,.906,.847);vec3 base=mix(K,AC,.04);
+ vec3 col=base+ring*mix(Wt,AC,.64)+texture2D(T2,vec2(q.x,1.-q.y)).rgb+AC*rim;
+ float e=min(min(q.x,1.-q.x)*R.x,min(q.y,1.-q.y)*R.y);float flick=.65+.35*n(vec2(atan(q.y-.5,q.x-.5)*6.,t*1.5));
+ col+=AC*exp(-e/(24.+U*160.))*U*2.6*flick;col=mix(col,K,.4*smoothstep(.5,1.15,length(q-.5)*1.4));gl_FragColor=vec4(col,1.);}`;
+(function(){const sh=(ty,src)=>{const s=gl.createShader(ty);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))console.error(gl.getShaderInfoLog(s));return s;};
+  const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}'));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,FS));gl.linkProgram(pr);gl.useProgram(pr);
+  const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);const l=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(l);gl.vertexAttribPointer(l,2,gl.FLOAT,false,0,0);
+  ['T','T2','R','t','C','SR','W','U','K','RD','AC'].forEach(k=>uni[k]=gl.getUniformLocation(pr,k));
+  const mk=()=>{const x=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,x);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);return x;};
+  texR=mk();texS=mk();gl.uniform1i(uni.T,0);gl.uniform1i(uni.T2,1);})();
+function upload(){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,texR);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,ringsC);
+  gl.activeTexture(gl.TEXTURE1);gl.bindTexture(gl.TEXTURE_2D,texS);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,starsC);}
+function resizeFx(){const dpr=Math.min(devicePixelRatio,2);cv.width=innerWidth*dpr;cv.height=innerHeight*dpr;gl.viewport(0,0,cv.width,cv.height);drawBg();}
+
+/* ================= land / water, and picture brightness for depth ================= */
+let land=null;{const img=new Image();img.crossOrigin='anonymous';img.src='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-water.png';
+  img.onload=()=>{const c=document.createElement('canvas');c.width=360;c.height=180;const g=c.getContext('2d');g.drawImage(img,0,0,360,180);const d=g.getImageData(0,0,360,180).data;land=new Uint8Array(360*180);for(let i=0;i<land.length;i++)land[i]=d[i*4]<100?1:0;buildLandTex();};}
+const isLand=(lat,lon)=>{if(!land)return 0;const x=Math.floor(((lon+180)%360+360)%360),y=Math.min(179,Math.max(0,Math.floor(90-lat)));return land[y*360+x];};
+const bright={};function loadBright(k){if(bright[k]||!REC[k].map)return;bright[k]='loading';const img=new Image();img.src=REC[k].img;img.onload=()=>{const c=document.createElement('canvas');c.width=360;c.height=180;const g=c.getContext('2d');g.drawImage(img,0,0,360,180);const d=g.getImageData(0,0,360,180).data;const a=new Float32Array(360*180);for(let i=0;i<a.length;i++)a[i]=(d[i*4]*.3+d[i*4+1]*.59+d[i*4+2]*.11)/255;bright[k]=a;};}
+function brightAt(lat,lon){const a=bright[cur.rec];if(!a||a==='loading')return isLand(lat,lon)?.5:0;const x=Math.floor(((lon+180)%360+360)%360),y=Math.min(179,Math.max(0,Math.floor(90-lat)));return a[y*360+x];}
+const angDist=(a1,o1,a2,o2)=>{const p1=a1*D2R,p2=a2*D2R,dl=(o2-o1)*D2R;return Math.acos(Math.max(-1,Math.min(1,Math.sin(p1)*Math.sin(p2)+Math.cos(p1)*Math.cos(p2)*Math.cos(dl))));};
+function nearestWater(lat,lon){if(!isLand(lat,lon))return {lat,lon,name:oceanName(lat,lon)};for(let r=1;r<=15;r++){for(let k=0;k<24;k++){const a=k/24*Math.PI*2,la=lat+r*Math.sin(a),lo=lon+r*Math.cos(a)/Math.max(.2,Math.cos(lat*D2R));if(!isLand(la,lo))return {lat:la,lon:lo,name:oceanName(la,lo)};}}return {lat,lon,name:'the nearest sea'};}
+function samplePoint(rec=cur.rec,lat=cur.lat,lon=cur.lon){if(REC[rec].sea&&isLand(lat,lon)){const w=nearestWater(lat,lon);return {lat:w.lat,lon:w.lon,water:w.name};}return {lat,lon,water:REC[rec].sea?oceanName(lat,lon):null};}
+
+/* ================= the orb: the globe with gradient ================= */
+const O={style:'lines',depth:0,gdepth:0,split:.3,pin:0,dot:false,behaviour:'focus',speed:15,spinLat:null,dir:1,wob:1,vl:21.6,vt:47,ramp:REC.sst.ramp.map(c=>new THREE.Color(c)),rampT:REC.sst.ramp.map(c=>new THREE.Color(c)),tint:new THREE.Color(.37,.82,.88),tintT:new THREE.Color(.37,.82,.88),tintAmt:0,glat:63.1,glon:21.6};
+const box=$('#orbBox');const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));box.appendChild(renderer.domElement);
+const scene=new THREE.Scene(),cam=new THREE.PerspectiveCamera(32,1,.1,50);cam.position.set(0,0,6.6);
+const G=new THREE.Group();scene.add(G);const SEG=240,RO=1.3,N=46,rings=[];
+const lineMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+  vertexShader:`attribute vec4 c;varying vec4 vc;varying float vz;void main(){vc=c;vz=(modelMatrix*vec4(position,1.)).z;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec4 vc;varying float vz;void main(){float a=mix(.35,1.,smoothstep(-1.4,1.,vz));gl_FragColor=vec4(vc.rgb,vc.a*a);}`});
+for(let i=0;i<N;i++){const s=-1+2*(i+.5)/N;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array((SEG+1)*3),3));g.setAttribute('c',new THREE.BufferAttribute(new Float32Array((SEG+1)*4),4));
+  const line=new THREE.Line(g,lineMat);G.add(line);rings.push({line,s,r:Math.sqrt(1-s*s),seed:Math.random()*100});}
+const pinMat=new THREE.LineBasicMaterial({color:0xffffff,transparent:true});
+const circ=new THREE.BufferGeometry().setFromPoints(Array.from({length:64},(_,k)=>new THREE.Vector3(Math.cos(k/64*Math.PI*2),Math.sin(k/64*Math.PI*2),0)));
+const tRing=new THREE.LineLoop(circ,pinMat),tRing2=new THREE.LineLoop(circ,pinMat.clone());G.add(tRing,tRing2);
+const tick=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),pinMat);G.add(tick);
+const dotTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');g.fillStyle='#fff';g.beginPath();g.arc(32,32,26,0,Math.PI*2);g.fill();return new THREE.CanvasTexture(c);})();
+const dot=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,transparent:true,depthTest:false}));G.add(dot);
+const cap=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,transparent:true,depthTest:false}));cap.scale.setScalar(.045);G.add(cap);
+function toGeo(x,y,z){const ct=Math.cos(O.vt*D2R),st=Math.sin(O.vt*D2R);const y2=y*ct+z*st,z2=-y*st+z*ct;return [Math.asin(Math.max(-1,Math.min(1,y2)))/D2R,Math.atan2(x,z2)/D2R+O.vl];}
+function fromGeo(lat,lon){const la=lat*D2R,lo=(lon-O.vl)*D2R;const x=Math.sin(lo)*Math.cos(la),y2=Math.sin(la),z2=Math.cos(lo)*Math.cos(la);const ct=Math.cos(O.vt*D2R),st=Math.sin(O.vt*D2R);return new THREE.Vector3(x,y2*ct-z2*st,y2*st+z2*ct);}
+const tmp=new THREE.Color(),WHITE=new THREE.Color(.953,.906,.847);
+function rampAt(x){x=Math.min(.999,Math.max(0,x))*3;const i=Math.floor(x),f=x-i;return tmp.copy(O.ramp[i]).lerp(O.ramp[i+1],f);}
+function sizeOrb(){const w=box.clientWidth;renderer.setSize(w,w,false);}
+const n3=(x,y,z)=>Math.sin(x*1.7+z)*Math.cos(y*1.3-z*.7)+.5*Math.sin(x*3.1-y*2.3+z*1.9);
+const pl=new THREE.Vector3();
+function updView(t){const plat=cur.lat,plon=cur.lon;
+  if(O.behaviour==='focus'){const dl=((plon-O.vl+540)%360)-180;O.vl+=dl*.05+(reduce||!started?0:Math.sin(t*.4)*.03);O.vt+=(plat*.75-O.vt)*.05;}
+  else if(O.behaviour==='spin'){O.vl+=O.dir*O.speed/60;O.vt+=((O.spinLat??plat)*.75-O.vt)*.05;}
+  const tl=O.behaviour==='spin'?(O.spinLat??plat):plat,tn=O.behaviour==='spin'?O.vl:plon;O.glat+=(tl-O.glat)*.12;O.glon+=(((tn-O.glon+540)%360)-180)*.12;}
+function drawOrb(t,sW,sM){O.ramp.forEach((c,i)=>c.lerp(O.rampT[i],.06));O.tint.lerp(O.tintT,.15);O.tintAmt+=((playingSomething()?.55:0)-O.tintAmt)*.05;const plat=cur.lat,plon=cur.lon;
+  const amp=(S.mode==='processing'?.05:0)+sW*.32*O.wob,dep=O.depth*.2;
+  rings.forEach((ring,i)=>{const pos=ring.line.geometry.attributes.position.array,col=ring.line.geometry.attributes.c.array;const sx=ring.s*RO+Math.sign(ring.s)*O.split;
+    for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,cy=Math.cos(a),cz=Math.sin(a);const [lat,lon]=toGeo(ring.s,ring.r*cy,ring.r*cz);const ang=angDist(lat,lon,plat,plon),near=Math.exp(-Math.pow(ang/.32,2));
+      let d=1+.055*O.wob*n3(cy*1.5+ring.seed,cz*1.5,t*.5+i*.2)-.035*O.wob*Math.max(0,Math.sin(a*2+ring.seed)-.92)*12+amp*n3(cy*3+i*.4,cz*3,t*2.2+ring.seed)+near*sM*.16;
+      if(S.mode==='processing')d+=.06*Math.sin(a*3+t*3+i*.5);if(reduce)d=1;if(dep>.001)d+=dep*brightAt(lat,lon);
+      pos[k*3]=sx;pos[k*3+1]=ring.r*cy*d*RO;pos[k*3+2]=ring.r*cz*d*RO;
+      let c=rampAt(1-Math.abs(lat)/90).clone().lerp(O.tint,O.tintAmt*(.5+near*.5)),alpha;if(isLand(lat,lon)){alpha=1;c.lerp(WHITE,.35);}else{alpha=.07;c.multiplyScalar(.6);}
+      if(dep>.001){const b=brightAt(lat,lon);alpha=Math.max(alpha,b*O.depth*.32);}
+      if(O.pin===3&&started){const nb=Math.exp(-Math.pow(ang/.5,2));if(nb>.03){const g=nb*(.9+sM*.8);alpha=Math.min(1,alpha+g*1.4);c.lerp(O.tint.clone().lerp(WHITE,.3),Math.min(1,g));}}
+      col[k*4]=c.r;col[k*4+1]=c.g;col[k*4+2]=c.b;col[k*4+3]=alpha;}
+    ring.line.geometry.attributes.position.needsUpdate=true;ring.line.geometry.attributes.c.needsUpdate=true;});
+  if(O.pin===1&&started){const ms=fromGeo(plat,plon).x;let mi=0,b=9;rings.forEach((r,i)=>{const d=Math.abs(r.s-ms);if(d<b){b=d;mi=i;}});const c=rings[mi].line.geometry.attributes.c.array,hc=O.tint.clone().lerp(WHITE,.35);for(let k=0;k<=SEG;k++){c[k*4]=hc.r;c[k*4+1]=hc.g;c[k*4+2]=hc.b;c[k*4+3]=.95;}}
+  pl.copy(fromGeo(plat,plon)).multiplyScalar(RO);const front=pl.z>-.1&&O.behaviour!=='spin'&&started;const pc=O.tint.clone().lerp(WHITE,.4);
+  tRing.visible=tRing2.visible=O.pin===0&&front;tick.visible=cap.visible=O.pin===2&&front;dot.visible=(O.pin===0||O.dot)&&front;
+  if(O.pin===0)[tRing,tRing2].forEach((tg,j)=>{tg.position.copy(pl).multiplyScalar(1.004);tg.lookAt(pl.clone().multiplyScalar(2));const ph=(t*1.4)%1;tg.scale.setScalar(j===0?.075+sM*.03:.075+ph*.12);tg.material.color.copy(pc);tg.material.opacity=j===0?1:.7*(1-ph);});
+  if(O.pin===2){const nrm=pl.clone().normalize(),dir=nrm.clone().add(new THREE.Vector3(.5,.85,.3).normalize().multiplyScalar(.6)).normalize();const tip=pl.clone().multiplyScalar(1.01),tail=tip.clone().add(dir.multiplyScalar(.42));tick.geometry.setFromPoints([tail,tip]);cap.position.copy(tail);cap.material.color.copy(pc);}
+  pinMat.color.copy(pc);dot.position.copy(pl).multiplyScalar(1.01);dot.material.color.copy(pc);dot.scale.setScalar(.05+sM*.015);renderer.render(scene,cam);
+  placeLabel(front?pl.clone().project(cam):null,box);}
+function placeLabel(sp,el){const lab=$('#pinLabel');if(!sp||el.classList.contains('off')||!started){lab.hidden=true;return;}const r=el.getBoundingClientRect();lab.hidden=false;const html=`${cur.place}${cur.country?`<small>${cur.country}</small>`:''}`;if(lab.innerHTML!==html)lab.innerHTML=html;lab.style.left=(r.left+(sp.x+1)/2*r.width)+'px';lab.style.top=(r.top+(1-sp.y)/2*r.height)+'px';}
+function setRecordColours(k){O.rampT=REC[k].ramp.map(c=>new THREE.Color(c));const sp=samplePoint(k);tintTo(k,base01(k,sp.lat,sp.lon));}
+function tintTo(k,x){const c=rampRGB(k,x);O.tintT.setRGB(...c);setAccentRGB(c);}
+
+/* ================= the realistic globe: the NASA picture, with optional depth ================= */
+const gbox=$('#globeBox');const vr=new THREE.WebGLRenderer({antialias:true,alpha:true});vr.setPixelRatio(Math.min(devicePixelRatio,2));gbox.appendChild(vr.domElement);
+const vscene=new THREE.Scene(),vcam=new THREE.PerspectiveCamera(32,1,.1,50);vcam.position.set(0,0,6.6);
+const texL=new THREE.TextureLoader();const texCache={};let landTex=null;
+function buildLandTex(){const c=document.createElement('canvas');c.width=720;c.height=360;const g=c.getContext('2d');const id=g.createImageData(720,360);for(let y=0;y<360;y++)for(let x=0;x<720;x++){const L=land[Math.floor(y/2)*360+Math.floor(x/2)];const i=(y*720+x)*4;id.data[i]=L?243:11;id.data[i+1]=L?231:8;id.data[i+2]=L?216:7;id.data[i+3]=255;}g.putImageData(id,0,0);landTex=new THREE.CanvasTexture(c);if(O.style.startsWith('real'))setGlobeTex(cur.rec);}
+const gMat=new THREE.ShaderMaterial({uniforms:{map:{value:null},depth:{value:0},light:{value:0}},
+  vertexShader:`uniform sampler2D map;uniform float depth;varying vec2 vUv;varying vec3 vW;void main(){vUv=uv;vec3 c=texture2D(map,uv).rgb;float h=dot(c,vec3(.3,.59,.11));vec4 w=modelMatrix*vec4(position+normal*h*depth,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+  fragmentShader:`uniform sampler2D map;uniform float light;varying vec2 vUv;varying vec3 vW;void main(){vec3 c=texture2D(map,vUv).rgb;vec3 n=normalize(cross(dFdx(vW),dFdy(vW)));float l=max(dot(n,normalize(vec3(-.45,.55,1.))),0.);c*=mix(1.,.35+.85*l,light);gl_FragColor=vec4(c,1.);}`});
+const globe=new THREE.Mesh(new THREE.SphereGeometry(RO,256,128),gMat);vscene.add(globe);
+const gRing=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff}));const gRing2=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff,transparent:true}));vscene.add(gRing,gRing2);
+
+function setGlobeTex(k){const r=REC[k];if(r.map){if(!texCache[k])texCache[k]=texL.load(r.img);gMat.uniforms.map.value=texCache[k];}else gMat.uniforms.map.value=landTex;}
+function sizeGlobe(){const w=gbox.clientWidth;vr.setSize(w,w,false);}
+function drawGlobe(t,sW,sM){O.tint.lerp(O.tintT,.15);globe.rotation.set(O.glat*D2R,-(O.glon+90)*D2R,0,'XYZ');
+  gMat.uniforms.depth.value=O.gdepth*.12;gMat.uniforms.light.value=O.gdepth;globe.scale.setScalar(reduce?1:1+sW*.025+sM*.02);
+  const front=O.behaviour!=='spin';const pc=O.tint.clone().lerp(WHITE,.4);[gRing,gRing2].forEach((g,j)=>{g.visible=front;g.position.set(0,0,RO*1.004+O.gdepth*.12);g.lookAt(0,0,5);const ph=(t*1.4)%1;g.scale.setScalar(j===0?.075+sM*.03:.075+ph*.12);g.material.color.copy(pc);if(j)g.material.opacity=.7*(1-ph);});
+  vr.render(vscene,vcam);placeLabel(front?{x:0,y:0}:null,gbox);}
+const isReal=()=>O.style.startsWith('real');
+function setGlobeStyle(s){if(!GLOBES[s])return;O.style=s;const real=isReal();box.classList.toggle('off',real);gbox.classList.toggle('off',!real);if(real){setGlobeTex(cur.rec);sizeGlobe();}loadBright(cur.rec);syncOpts();}
+
+/* ================= logo and favicon follow the sound ================= */
+const LB=[[4,14,18],[10,8,24],[16,3,29],[22,9,23],[28,13,19]];let favT=0,favLast='',logoPress=-1e9;
+function drawLogo(t,lvl){const hs=LB.map(([x,y1,y2],i)=>{const mid=(y1+y2)/2,half=(y2-y1)/2;const k=reduce?1:1+lvl*(.9+.5*Math.sin(t*14+i*1.7))+.08*Math.sin(t*2+i);const pp=(performance.now()-logoPress)/320,press=pp>=0&&pp<1?1-.55*Math.sin(Math.PI*pp)*(1+.25*Math.sin(Math.PI*pp*2+i)):1;const hh=Math.min(15,half*Math.max(.35,k))*press;return [x,mid-hh,mid+hh];});
+  document.querySelectorAll('#logoBars line').forEach((b,i)=>{b.setAttribute('y1',hs[i][1]);b.setAttribute('y2',hs[i][2]);});
+  const now=performance.now();if(now-favT<160)return;favT=now;const q=lvl>.02?hs:LB;
+  const s=`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><g stroke='${accentHex}' stroke-width='3' stroke-linecap='round'>${q.map(([x,a,b])=>`<line x1='${x}' x2='${x}' y1='${a.toFixed(1)}' y2='${b.toFixed(1)}'/>`).join('')}</g></svg>`;
+  if(s!==favLast){favLast=s;$('#fav').href='data:image/svg+xml,'+encodeURIComponent(s);}}
+
+/* ================= main loop ================= */
+let smoothW=0,smoothM=0,started=false;const t0=performance.now();
+function frame(now){const t=(now-t0)/1000,dpr=Math.min(devicePixelRatio,2);
+  S.music=an?Math.min(1,rmsMusic()*7):0;smoothW+=(Math.max(S.agent,S.user*.7)-smoothW)*.25;smoothM+=(S.music-smoothM)*(S.music>smoothM?.4:.1);S.think+=((S.mode==='processing'?1:0)-S.think)*.05;
+  if(S.agent>.18&&t-S.lastPush>.28&&!reduce){S.waves.push([t,Math.min(1.2,S.agent*1.4),0,0]);S.lastPush=t;}
+  S.waves=S.waves.filter(w=>t-w[0]<2).slice(-10);const W=new Float32Array(40);S.waves.forEach((w,i)=>W.set(w,i*4));
+  for(let i=0;i<3;i++)S.acs[i]+=(S.accent[i]-S.acs[i])*.06;
+  const r=box.getBoundingClientRect();
+  gl.uniform2f(uni.R,cv.width,cv.height);gl.uniform1f(uni.t,t);gl.uniform2f(uni.C,(r.left+r.width/2)*dpr,cv.height-(r.top+r.height/2)*dpr);
+  gl.uniform1f(uni.SR,r.width/2*.69*dpr);gl.uniform4fv(uni.W,W);gl.uniform1f(uni.U,S.user);gl.uniform1f(uni.K,S.think);gl.uniform1f(uni.RD,reduce?1:0);gl.uniform3fv(uni.AC,S.acs);
+  gl.drawArrays(gl.TRIANGLE_STRIP,0,4);drawLogo(t,Math.max(S.agent,S.user,S.music*1.3));
+  updView(t);O.split+=((started?0:(reduce?.26:.26+.05*Math.sin(t*2.2)))-O.split)*(started?.06:.2);
+  O.depth+=((O.style==='linesDepth'?1:0)-O.depth)*.08;O.gdepth+=((O.style==='realDepth'?1:0)-O.gdepth)*.08;
+  if(isReal())drawGlobe(t,smoothW,smoothM);else drawOrb(t,smoothW,smoothM);requestAnimationFrame(frame);}
+addEventListener('resize',()=>{resizeFx();sizeOrb();sizeGlobe();if(trayOpen())sizeTray(true);});resizeFx();sizeOrb();sizeGlobe();requestAnimationFrame(frame);
+
+/* ================= instruments ================= */
+let AC,music,an,adata;
+function audio(){if(AC)return;AC=new AudioContext();music=AC.createGain();an=AC.createAnalyser();an.fftSize=512;adata=new Uint8Array(512);music.connect(an);music.connect(AC.destination);}
+function rmsMusic(){an.getByteTimeDomainData(adata);let s=0;for(const v of adata){const x=(v-128)/128;s+=x*x;}return Math.sqrt(s/adata.length);}
+/* 3D audio: each note sits around the listener's head (HRTF). az: degrees, minus is left. el: degrees, plus is above. */
+function place3d(p,pos){const a=(pos.az||0)*D2R,e=(pos.el||0)*D2R,x=Math.sin(a)*Math.cos(e),y=Math.sin(e),z=-Math.cos(a)*Math.cos(e);if(p.positionX){p.positionX.value=x;p.positionY.value=y;p.positionZ.value=z;}else p.setPosition(x,y,z);}
+function voiceOn(ctx,dest,when,f,dur,pos,vol,inst){const out=ctx.createGain(),p=ctx.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=1;place3d(p,pos||{});out.connect(p).connect(dest);
+  const env=(g,a,d,v)=>{g.gain.setValueAtTime(0,when);g.gain.linearRampToValueAtTime(v,when+a);g.gain.exponentialRampToValueAtTime(.0008,when+d);};
+  const osc=(type,freq,v,a,d,det=0)=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type=type;o.frequency.value=freq;o.detune.value=det;env(g,a,d,v);o.connect(g).connect(out);o.start(when);o.stop(when+d+.05);return o;};
+  if(inst==='piano'){osc('triangle',f,vol,.005,dur*1.6);osc('sine',f*2,vol*.3,.005,dur*.8);}
+  else if(inst==='marimba'){osc('sine',f,vol*1.1,.003,dur*.7);osc('sine',f*4,vol*.25,.002,dur*.18);}
+  else if(inst==='flute'){const o=osc('sine',f,vol,.06,dur*1.2);const l=ctx.createOscillator(),lg=ctx.createGain();l.frequency.value=5.5;lg.gain.value=f*.006;l.connect(lg).connect(o.frequency);l.start(when);l.stop(when+dur*1.2);osc('triangle',f*2,vol*.08,.06,dur*1.1);}
+  else if(inst==='glass bells'){osc('sine',f*2,vol*.8,.002,dur*2.2);osc('sine',f*2*2.76,vol*.25,.002,dur*1.2);osc('sine',f*2*5.4,vol*.1,.002,dur*.6);}
+  else if(inst==='synth pad'){[-9,0,9].forEach(d=>osc('sawtooth',f,vol*.33,.15,dur*1.8,d));}
+  else{const lp=ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2200;lp.connect(out);[-6,6].forEach(d=>{const o=ctx.createOscillator(),g=ctx.createGain();o.type='sawtooth';o.frequency.value=f;o.detune.value=d;env(g,.05,dur*1.3,vol*.45);o.connect(g).connect(lp);o.start(when);o.stop(when+dur*1.35);});}}
+function drumOn(ctx,dest,when){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(150,when);o.frequency.exponentialRampToValueAtTime(42,when+.18);g.gain.setValueAtTime(.3,when);g.gain.exponentialRampToValueAtTime(.001,when+.25);o.connect(g).connect(dest);o.start(when);o.stop(when+.3);}
+function tone(f,dur=.5,pos={az:0,el:0},vol=.16){audio();voiceOn(AC,music,AC.currentTime,f,dur,pos,vol,cur.inst);}
+/* where a place sounds: west on the left, east on the right, north above, south below */
+const posOf=(lat,lon)=>({az:Math.max(-90,Math.min(90,lon/2)),el:Math.max(-40,Math.min(40,lat*.45))});
+/* during a spin the sound circles the listener as the world turns */
+const spinPos=lat=>({az:((O.vl-cur.lon+540)%360)-180,el:Math.max(-40,Math.min(40,lat*.45))});
+function drum(){audio();drumOn(AC,music,AC.currentTime);if(navigator.vibrate&&navigator.userActivation?.hasBeenActive)navigator.vibrate(40);}
+const NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],SEMI=[0,2,4,7,9];
+const noteOf=x=>{const i=Math.round(Math.max(0,Math.min(1,x))*14),m=48+12*Math.floor(i/5)+SEMI[i%5];return {name:NAMES[m%12]+(Math.floor(m/12)-1),hz:Math.round(440*Math.pow(2,(m-69)/12))};};
+const pitchWords=x=>x<.2?'a very low note':x<.4?'a low note':x<.6?'a middle note':x<.8?'a high note':'a very high note';
+function valueWords(x){const r=cur.rec;if(r==='sst')return x<.25?'cold for the sea':x<.55?'cool for the sea':x<.8?'warm for the sea':'very warm for the sea';if(r==='ssta')return x<.45?'cooler than normal':x<.55?'close to normal':'warmer than normal';
+  if(r==='air')return x<.3?'freezing air':x<.55?'mild air':x<.8?'warm air':'hot air';if(r==='ice')return x<.1?'open water':x<.6?'some ice':'mostly ice';if(r==='bio')return x<.25?'little plant life':x<.6?'some plant life':'a lot of plant life';return x<.1?'no fires':x<.5?'a few fires':'many fires';}
+function base01(rec,lat,lon){const a=Math.abs(lat)/90,L=isLand(lat,lon);
+  if(rec==='sst'||rec==='air')return Math.max(0,Math.min(1,1-Math.pow(a,.8)+(rec==='air'&&L?.05:0)));if(rec==='ice')return L?0:Math.max(0,Math.min(1,(a-.6)/.3));if(rec==='bio')return L?Math.max(0,.8-a):.15;if(rec==='fire')return L&&a<.4?.5:0;return .55;}
+const seriesFor=(rec,lat,lon)=>{const b=base01(rec,lat,lon);return Array.from({length:45},(_,i)=>Math.max(0,Math.min(1,b-.06+i/44*(rec==='ice'?-.2:.12)+.035*Math.sin(i*1.7))));};
+const val=(x,rec=cur.rec)=>{const r=REC[rec];return +(r.min+(r.max-r.min)*x).toFixed(1);};
+const sideOf=lon=>{const a=posOf(0,lon).az;return a>2?'right':a<-2?'left':'centre';};
+function readingFor(rec,lat,lon,i){const sp=samplePoint(rec,lat,lon);const s=seriesFor(rec,sp.lat,sp.lon),x=s[i],n=noteOf(x),prev=s[Math.max(0,i-1)],avg=s.slice(0,Math.max(1,i)).reduce((a,b)=>a+b,0)/Math.max(1,i);
+  return {x,just_played_year:1981+i,value:val(x,rec),unit:REC[rec].unit,value_words:valueWords(x),pitch_words:pitchWords(x),compared_with_previous:x>prev+.01?'higher than the year before':x<prev-.01?'lower than the year before':'about the same as the year before',drum:x-avg>.04,instrument:cur.inst,side:sideOf(lon),water_name:sp.water,note_name:n.name,frequency_hz:n.hz};}
+const reading=i=>({mock:true,place:fullPlace(),record:REC[cur.rec].name,...readingFor(cur.rec,cur.lat,cur.lon,i)});
+function currentX(){const sp=samplePoint();if(prog&&prog.type==='track')return seriesFor(cur.rec,sp.lat,sp.lon)[Math.max(prog.from,trackI-1)];if(prog&&prog.type==='year')return seriesFor(cur.rec,sp.lat,sp.lon)[prog.year-1981];return base01(cur.rec,sp.lat,sp.lon);}
+
+/* ================= player (no card) ================= */
+let prog=null,trackI=0,trackTimer=null,trackPaused=false,spinTimer=null;
+const playingSomething=()=>(trackTimer&&!trackPaused)||!!spinTimer;
+const canResume=()=>prog&&((prog.type==='track'&&trackTimer&&trackPaused)||(prog.type==='spin'&&!spinTimer));
+function setProg(p){prog={rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,...p};}
+function setIcon(){const p=playingSomething();$('#pIcon').innerHTML=p?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4v16l13-8z"/>';$('#pPlay').setAttribute('aria-label',p?'Pause':'Play');
+  $('#logoBtn').setAttribute('aria-label',p?'Pause':canResume()?'Play again':'Go to My place');$('#logoBtn').title=p?'Pause (Space)':canResume()?'Play again (Space)':'Go to My place (H)';}
+function updPlayer(){const sp=samplePoint();$('#pRec').innerHTML=`<b>${REC[cur.rec].name}</b>, on ${cur.inst}`;$('#pPlace').textContent=fullPlace();
+  $('#pWater').textContent=REC[cur.rec].sea&&sp.water&&isLand(cur.lat,cur.lon)?`Sea: ${sp.water}`:'';$('#pVal').textContent='';
+  if(!prog){$('#pYear').textContent='Ready';$('#pBar').style.width='0';return;}
+  if(prog.type==='spin'){$('#pYear').textContent='Spinning';$('#pPlace').textContent=`Around the world at ${Math.abs(prog.lat).toFixed(0)}° ${prog.lat>=0?'north':'south'}, ${prog.dir>0?'east':'west'}`;$('#pWater').textContent='';$('#pBar').style.width='100%';return;}
+  const x=currentX();$('#pVal').textContent=`${val(x)} ${REC[cur.rec].unit}, ${valueWords(x)}`;
+  $('#pYear').textContent=prog.type==='year'?prog.year:1981+Math.max(prog.from,trackI-1);$('#pBar').style.width=prog.type==='year'?'100%':((trackI-prog.from)/Math.max(1,prog.to-prog.from+1)*100)+'%';}
+function surprise(){if(cur.instMode!=='random')return;const c=INSTRUMENTS.filter(i=>i!==cur.inst);cur.inst=c[Math.floor(Math.random()*c.length)];syncOpts();}
+function startTrack(from=0,to=44){surprise();clearInterval(trackTimer);stopSpinSound();trackI=from;trackPaused=false;setProg({type:'track',from,to});
+  trackTimer=setInterval(()=>{if(trackPaused)return;const r=reading(trackI);cur.last=r;tone(r.frequency_hz,.45,posOf(cur.lat,cur.lon));if(r.drum)drum();tintTo(cur.rec,r.x);trackI++;updPlayer();
+    if(trackI>to){clearInterval(trackTimer);trackTimer=null;setIcon();conv&&conv.sendContextualUpdate(`The track ended. It played ${REC[cur.rec].name} for ${fullPlace()} from ${1981+from} to ${1981+to} on ${cur.inst}. The last note was ${1981+to}. Ask the person what they want next.`);}},380);
+  setIcon();updPlayer();}
+function playPause(){if(!prog||(prog.type==='track'&&!trackTimer)){startTrack(prog&&prog.type==='track'?prog.from:0,prog&&prog.type==='track'?prog.to:44);return;}if(prog.type==='spin'){spinTimer?stopSpinSound():startSpinSound();}else if(prog.type==='year'){startTrack(prog.year-1981,44);}else{trackPaused=!trackPaused;}setIcon();}
+$('#pPlay').onclick=playPause;
+function startSpinSound(){if(!spinTimer)surprise();clearInterval(spinTimer);spinTimer=setInterval(()=>{const lat=O.vt/.75;const x=base01(cur.rec,lat,O.vl);tintTo(cur.rec,x);tone(noteOf(x).hz,.35,spinPos(lat),.12);},420);setIcon();}
+function stopSpinSound(){clearInterval(spinTimer);spinTimer=null;setIcon();}
+function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
+/* the logo: pause, play again, or go home */
+$('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
+
+/* ================= download exactly what is playing ================= */
+const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+async function renderProg(p){const sr=44100;let steps=[];
+  if(p.type==='track'){for(let i=p.from;i<=p.to;i++){const r=readingFor(p.rec,p.lat,p.lon,i);steps.push({t:(i-p.from)*.38,f:r.frequency_hz,dur:.45,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}}
+  else if(p.type==='year'){const r=readingFor(p.rec,p.lat,p.lon,p.year-1981);steps.push({t:0,f:r.frequency_hz,dur:.8,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}
+  else{const n=Math.ceil(360/p.speed/.42);for(let k=0;k<n;k++){const lon=p.startLon+p.dir*p.speed*.42*k;steps.push({t:k*.42,f:noteOf(base01(p.rec,p.lat,lon)).hz,dur:.35,pos:{az:((p.dir*p.speed*.42*k+180)%360)-180,el:Math.max(-40,Math.min(40,p.lat*.45))},drum:false,vol:.12});}}
+  const len=(steps.length?steps[steps.length-1].t:0)+2;const ctx=new OfflineAudioContext(2,Math.ceil(len*sr),sr);const out=ctx.createGain();out.connect(ctx.destination);
+  steps.forEach(s=>{voiceOn(ctx,out,s.t,s.f,s.dur,s.pos,s.vol,p.inst);if(s.drum)drumOn(ctx,out,s.t);});const buf=await ctx.startRendering();
+  const L=buf.getChannelData(0),R=buf.getChannelData(1),n=L.length,ab=new ArrayBuffer(44+n*4),v=new DataView(ab);const ws=(o,s)=>[...s].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
+  ws(0,'RIFF');v.setUint32(4,36+n*4,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,sr,true);v.setUint32(28,sr*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,n*4,true);
+  for(let i=0;i<n;i++){v.setInt16(44+i*4,Math.max(-1,Math.min(1,L[i]))*32767,true);v.setInt16(46+i*4,Math.max(-1,Math.min(1,R[i]))*32767,true);}return new Blob([ab],{type:'audio/wav'});}
+async function download(){const p=prog||{type:'track',rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,from:0,to:44};
+  const what=p.type==='spin'?`spin-${Math.round(Math.abs(p.lat))}${p.lat>=0?'n':'s'}-${p.speed}deg-s-${p.dir>0?'east':'west'}`:p.type==='year'?`${p.year}`:`${1981+p.from}-${1981+p.to}`;
+  const name=`earth-jukebox_${slug(REC[p.rec].name)}_${slug(p.type==='spin'?'world':fullPlace(p))}_${what}_${slug(p.inst)}.wav`;
+  const blob=await renderProg(p);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  $('#srStatus').textContent=`Downloaded ${name}`;caption('juke',`Saved ${name}.`);}
+$('#dlBtn').onclick=download;
+
+/* ================= places and location ================= */
+const findPlace=q=>{q=(q||'').toLowerCase().replace(/^the /,'').replace(/,.*$/,'').trim();if(/^(my place|home|here)$/.test(q))return 'My place';return Object.keys(PLACES).find(k=>k.toLowerCase()===q)||Object.keys(PLACES).find(k=>k.toLowerCase().includes(q)&&q.length>2);};
+function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
+function goHome(tell){const h=myPlace();goPlace(h.name,h.lat,h.lon,h.country);cur.isHome=true;syncOpts();if(tell&&conv)conv.sendContextualUpdate(`The person went back to their own place, ${fullPlace()}.`);}
+function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);}
+async function locate(){if(!navigator.geolocation)return null;
+  const pos=await new Promise(res=>{navigator.geolocation.getCurrentPosition(p=>res(p),()=>res(null),{timeout:7000,maximumAge:6e5});setTimeout(()=>res(null),8000);});if(!pos)return null;
+  const {latitude:lat,longitude:lon}=pos.coords;let name=null,country='';
+  try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);const j=await r.json();name=j.city||j.locality||null;country=j.countryName||'';}catch(e){}
+  if(!name){let best=null,bd=1e9;for(const [n,[a,b]] of Object.entries(PLACES)){const d=angDist(lat,lon,a,b);if(d<bd){bd=d;best=n;}}if(bd/D2R<3){name=best;country=PLACES[best][2];}else{name=isLand(lat,lon)?`${lat.toFixed(1)}°, ${lon.toFixed(1)}°`:oceanName(lat,lon);}}
+  return {name,country,lat,lon};}
+
+/* ================= client tools (mock data) ================= */
+const tools={
+ list_records:()=>JSON.stringify(Object.entries(REC).map(([id,r])=>({id,name:r.name,unit:r.unit}))),
+ set_record:({record_id})=>{if(!REC[record_id])return 'error: unknown record id. Call list_records.';cur.rec=record_id;if(cur.instMode!=='random')cur.inst=REC[record_id].inst;loadBright(record_id);if(isReal())setGlobeTex(record_id);syncOpts();refresh();const sp=samplePoint();
+   return JSON.stringify({mock:true,id:record_id,name:REC[record_id].name,unit:REC[record_id].unit,instrument:cur.inst,place:fullPlace(),water_name:REC[record_id].sea&&isLand(cur.lat,cur.lon)?sp.water:null,place_is_on_land:!!isLand(cur.lat,cur.lon)});},
+ set_place:({place_name})=>{const n=findPlace(place_name);if(!n)return JSON.stringify({error:`Not in the prototype list. Known places: My place, ${Object.keys(PLACES).join(', ')}.`});if(n==='My place')goHome();else goPlace(n);const sp=samplePoint();return JSON.stringify({found:fullPlace(),lat:cur.lat,lon:cur.lon,water_name:REC[cur.rec].sea&&isLand(cur.lat,cur.lon)?sp.water:null});},
+ play_key:()=>{const sp=samplePoint(),s=seriesFor(cur.rec,sp.lat,sp.lon),b=s.slice(0,10).reduce((a,c)=>a+c,0)/10,n1=noteOf(b),n2=noteOf(b+.14);const pp=posOf(cur.lat,cur.lon);setTimeout(()=>tone(n1.hz,1,pp),300);setTimeout(()=>tone(n2.hz,1,pp),1500);setTimeout(drum,2700);
+   return JSON.stringify({mock:true,place:fullPlace(),order:'normal note first, then a higher note, then a drum',normal_pitch_words:pitchWords(b),normal_value:val(b),normal_value_words:valueWords(b),higher_pitch_words:'a higher note',higher_value:val(b+.14),unit:REC[cur.rec].unit,drum_means:'higher than normal for that date',instrument:cur.inst,water_name:sp.water});},
+ play_track:({start_year,end_year}={})=>{const a=Math.max(0,Math.min(44,(+start_year||1981)-1981)),b=Math.max(a,Math.min(44,(+end_year||2025)-1981));O.behaviour='focus';syncOpts();startTrack(a,b);
+   return JSON.stringify({mock:true,place:fullPlace(),starts_in:1981+a,ends_in:1981+b,first_value:reading(a).value,last_value:reading(b).value,unit:REC[cur.rec].unit,note:'The music plays now. Say one short line, then stay quiet.'});},
+ pause_track:()=>{trackPaused=true;stopSpinSound();setIcon();return JSON.stringify({paused:true,just_played_year:prog&&prog.type==='track'?1981+Math.max(prog.from,trackI-1):null});},
+ set_year:({year})=>{const i=Math.max(0,Math.min(44,(+year||2024)-1981));const r=reading(i);cur.last=r;clearInterval(trackTimer);trackTimer=null;setProg({type:'year',year:1981+i});tone(r.frequency_hz,.8,posOf(cur.lat,cur.lon));tintTo(cur.rec,r.x);updPlayer();setIcon();flashYear();return JSON.stringify(r);},
+ get_reading:()=>JSON.stringify(cur.last||reading(43)),
+ explain_current_sound:()=>JSON.stringify(cur.last||reading(43)),
+ switch_mode:({mode})=>{setGlobeStyle(mode==='visual'?'real':'lines');return JSON.stringify({globe:GLOBES[O.style][0]});},
+ open_nasa_source:()=>{openMenu('src');return JSON.stringify({title:REC[cur.rec].name,url:`${SVS}${REC[cur.rec].svs}/`});},
+ spin_globe:({speed,latitude,direction}={})=>{clearInterval(trackTimer);trackTimer=null;O.behaviour='spin';O.speed=Math.max(3,Math.min(60,+speed||15));if(latitude!==undefined&&latitude!==''&&!isNaN(+latitude))O.spinLat=+latitude;O.dir=(direction||'east').toLowerCase().startsWith('w')?-1:1;syncOpts();
+   setProg({type:'spin',lat:O.spinLat??cur.lat,speed:O.speed,dir:O.dir,startLon:O.vl});startSpinSound();updPlayer();return JSON.stringify({spinning:true,speed:O.speed,latitude:O.spinLat??cur.lat,direction:O.dir>0?'east':'west'});},
+ stop_spin:()=>{stopSpinSound();const lat=O.vt/.75,lon=((O.vl+540)%360)-180;let best=null,bd=1e9;for(const [n,[a,b]] of Object.entries(PLACES)){const d=angDist(lat,lon,a,b)/D2R;if(d<bd){bd=d;best=n;}}
+   if(bd<12)goPlace(best);else goPlace(isLand(lat,lon)?`Land at ${Math.abs(lat).toFixed(0)}° ${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(0)}° ${lon>=0?'E':'W'}`:oceanName(lat,lon),lat,lon,'');O.spinLat=null;prog=null;updPlayer();setIcon();return JSON.stringify({place:fullPlace(),lat:+cur.lat.toFixed(1),lon:+cur.lon.toFixed(1)});},
+ set_instrument:({instrument})=>{const q=String(instrument||'').toLowerCase().trim();if(/random|surprise|any|different/.test(q)){cur.instMode='random';surprise();updPlayer();tone(noteOf(currentX()).hz,.8,posOf(cur.lat,cur.lon));return JSON.stringify({instrument:cur.inst,mode:'surprise me: a different instrument for each track'});}cur.instMode='fixed';const k=INSTRUMENTS.find(i=>i===q)||INSTRUMENTS.find(i=>q.includes(i.split(' ')[0])||q.includes(i.split(' ').pop()));if(!k)return JSON.stringify({error:`Choices: ${INSTRUMENTS.join(', ')}`});cur.inst=k;syncOpts();updPlayer();tone(noteOf(currentX()).hz,.8,posOf(cur.lat,cur.lon));return JSON.stringify({instrument:k});},
+};
+
+/* ================= conversation ================= */
+let conv=null,raf=0,quietSince=0,captionT=null,pending=[],connecting=false;
+function caption(who,text,again){const c=$('#captions');c.style.opacity=1;c.innerHTML=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="pill again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;if(again)$('#againBtn').onclick=talkAgain;fitCaption();clearTimeout(captionT);if(!again)captionT=setTimeout(()=>c.style.opacity=.35,9000);if(who==='you')activity();
+  if(who==='juke'&&/\b(19[89]\d|20[0-2]\d)\b/.test(text))flashYear();}
+/* captions live between the globe and the dock; long lines fade out at the top */
+function layoutCaptions(){const r=box.getBoundingClientRect();const top=r.top+r.height/2+r.height*.41+40;const d=$('#dock');const bottom=d.hidden?innerHeight-40:d.getBoundingClientRect().top-40;const c=$('#captions');c.style.top=top+'px';c.style.height=Math.max(44,bottom-top)+'px';fitCaption();}
+function fitCaption(){const c=$('#captions');c.classList.remove('over');c.classList.toggle('over',c.scrollHeight>c.clientHeight+1);}
+addEventListener('resize',layoutCaptions);
+function closeGate(){const g=$('#gate');if(g.hidden)return;g.classList.add('out');setTimeout(()=>g.hidden=true,reduce?0:260);}
+function reveal(){started=true;document.body.classList.add('started');$('header').inert=false;closeGate();setTimeout(layoutCaptions,650);$('#dock').hidden=false;applyLayout();updPlayer();setIcon();layoutCaptions();}
+/* quiet watch: after 45 s with no word, typing, click or music, Juke says it will pause, then the app ends the call and offers Talk again (R) */
+let lastAct=performance.now(),warnedAt=0,lastOpts={},endedBy=null;
+function activity(){lastAct=performance.now();warnedAt=0;}
+['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{if(conv)activity();},true));
+setInterval(()=>{if(!conv||connecting)return;const now=performance.now();if(playingSomething()||S.user>.12){activity();return;}
+  if(!warnedAt&&now-lastAct>45000&&S.mode!=='speaking'){warnedAt=now;conv.sendContextualUpdate('The person has been quiet for 45 seconds. In one short sentence, say that you will pause now, and that they can press R or click Talk again to continue. Then stop talking.');}
+  else if(warnedAt&&((now-warnedAt>5000&&S.mode!=='speaking')||now-warnedAt>16000))endConv('quiet');},1000);
+function talkAgain(){if(conv||connecting)return;caption('juke','Connecting again.');start(lastOpts);}
+async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts;endedBy=null;activity();audio();reveal();if(opts.textOnly)$('#typeIn').focus();setState('processing','Finding where you are');
+  if(!home){home=await locate();}goHome();
+  setState('processing','Connecting to Juke');
+  try{const {Conversation}=await import('https://esm.sh/@elevenlabs/client@1.32.1');
+    const cfg={agentId:AGENT_ID,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
+      onConnect:()=>{setState('listening','Listening');$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
+        if(why==='quiet')caption('juke','I paused because it was quiet.',true);else if(why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
+      onModeChange:({mode})=>{if(mode==='speaking'){if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);}},
+      onMessage:({message,source})=>caption(source==='user'?'you':'juke',message)};
+    if(opts.textOnly)cfg.textOnly=true;else cfg.connectionType='webrtc';if(cur.voice)cfg.overrides={tts:{voiceId:cur.voice}};
+    conv=await Conversation.startSession(cfg);connecting=false;pending.splice(0).forEach(m=>conv.sendUserMessage(m));
+    const loop=()=>{if(!opts.textOnly&&conv){S.user=Math.min(1,conv.getInputVolume()*2.2);S.agent=Math.min(1,conv.getOutputVolume()*2.2);}
+      if(S.mode==='listening'){if(S.user>.12){S.userSpoke=1;quietSince=performance.now();}else if(S.userSpoke&&performance.now()-quietSince>700){S.userSpoke=0;setState('processing','Thinking');}}raf=requestAnimationFrame(loop);};loop();
+  }catch(e){console.error(e);connecting=false;if(!opts.textOnly&&/permission|notallowed|denied/i.test(String(e&&(e.name||e.message)))){caption('juke','The microphone is blocked, so we can type. Use the field at the bottom.');start({textOnly:true});return;}
+    if(cur.voice&&/voice/i.test(String(e.message))){caption('juke','That voice did not work, so I went back to my usual voice.');cur.voice='';syncOpts();start(opts);return;}caption('juke','I could not connect: '+(e.message||e));}}
+function send(text){if(!text.trim())return;caption('you',text);if(conv)conv.sendUserMessage(text);else{pending.push(text);if(!connecting)caption('juke','We are paused. Talk again, and I will read your message.',true);}}
+$('#start').onclick=()=>start();$('#startTyping').onclick=()=>start({textOnly:true});
+box.addEventListener('click',()=>{if(!started)start();});
+$('#typeBox').onsubmit=e=>{e.preventDefault();const v=$('#typeIn').value;send(v);$('#typeIn').value='';if(!conv&&!connecting&&v.trim()&&started)talkAgain();};
+async function endConv(why='you'){endedBy=why;cancelAnimationFrame(raf);const c=conv;conv=null;await c?.endSession();S.user=S.agent=0;if(why!=='voice'){clearInterval(trackTimer);trackTimer=null;stopSpinSound();}setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
+  if(why==='you')caption('juke','Paused.',true);if(why==='quiet')caption('juke','I paused because it was quiet.',true);}
+
+/* ================= shortcuts (3), built once so the metal button can reflect on them ================= */
+/* shortcut 1 names the place on screen; at sea or open land it says "this latitude" */
+const spinName=()=>(PLACES[cur.place]&&cur.place!=='Equator'&&cur.place!=='Arctic Ocean')||(cur.country&&!/^Land at/.test(cur.place))?`${cur.place}'s latitude`:'this latitude';
+const SHORTCUTS=()=>[`Spin the world at ${spinName()}`,`What does ${REC[cur.rec].short} sound like here?`,'Change the instrument'];
+const chips=[0,1,2].map(i=>{const b=document.createElement('button');b.className='chip';b.type='button';b.innerHTML=`<kbd>${i+1}</kbd><span></span>`;b.setAttribute('aria-keyshortcuts',String(i+1));b.onclick=()=>useShortcut(i);$('#shortcuts').appendChild(b);return b;});
+function drawShortcuts(){SHORTCUTS().forEach((t,i)=>{chips[i].setAttribute('aria-label',t);chips[i].querySelector('span').textContent=t;});}
+function useShortcut(i){send(SHORTCUTS()[i]);}
+
+/* ================= metal send button (libraries.dev metal-fx), reflecting on the field and the chips ================= */
+(async()=>{const slot=$('#sendSlot');const arrow='<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
+  try{const React=(await import('https://esm.sh/react@19.2.0')).default;const {createRoot}=await import('https://esm.sh/react-dom@19.2.0/client?deps=react@19.2.0');const M=await import('https://esm.sh/metal-fx@2.0.11?deps=react@19.2.0,react-dom@19.2.0');
+    const btn=React.createElement('button',{className:'sendBtn',type:'submit','aria-label':'Send',dangerouslySetInnerHTML:{__html:arrow}});
+    const targets=[{ref:{current:$('.field')},strength:1},...chips.map(c=>({ref:{current:c},strength:.5}))];
+    createRoot(slot).render(React.createElement(M.MetalFx,{preset:'chromatic',variant:'circle',theme:'dark',innerShadow:true,strength:.9,reflectionTargets:targets},btn));window.__metal='metal-fx loaded';
+  }catch(e){console.warn('metal-fx failed',e);slot.innerHTML=`<button class="sendBtn fallback" type="submit" aria-label="Send"><span>${arrow}</span></button>`;window.__metal='fallback: '+e.message;}})();
+
+/* ================= layout variants (side content) ================= */
+const LAYOUTS={A:{n:'Player left, NASA source right',p:'left',s:'right'},B:{n:'NASA source left, player right',p:'right',s:'left'},C:{n:'Player right, no source',p:'right',s:null}};
+let layout=new URLSearchParams(location.search).get('layout');if(!LAYOUTS[layout])layout='A';
+function applyLayout(){const L=LAYOUTS[layout];const pw=$('#playerWrap'),sw=$('#sourceWrap');pw.hidden=!started;pw.className='side-info '+L.p;$('#player').className=L.p==='right'?'right':'';
+  if(L.s){sw.hidden=!started;sw.className='side-info '+L.s;$('#source').style.textAlign=L.s;}else sw.hidden=true;syncOpts();}
+
+/* ================= open and close, and the morph ================= */
+const isOpen=el=>!el.hidden&&el.classList.contains('in');
+function show(el,instant){clearTimeout(el._t);el.classList.toggle('instant',!!instant||reduce);el.hidden=false;void el.offsetWidth;el.classList.add('in');}
+function hide(el,instant){if(el.hidden)return;el.classList.toggle('instant',!!instant||reduce);el.classList.remove('in');clearTimeout(el._t);if(instant||reduce){el.hidden=true;return;}el._t=setTimeout(()=>el.hidden=true,220);}
+/* morph a container from one view to another: the size changes smoothly, the old view slides out, the new one slides in from the side you went toward */
+function morphTo(wrap,from,to,dir,instant,fixW){if(from===to)return;clearTimeout(wrap._mt);
+  wrap.querySelectorAll('.view.leaving').forEach(v=>{v.hidden=true;v.classList.remove('leaving');v.style.cssText='';});
+  const w0=wrap.offsetWidth,h0=wrap.offsetHeight;to.hidden=false;to.classList.add('measure');const w1=to.offsetWidth,h1=to.offsetHeight;to.classList.remove('measure');
+  if(instant||reduce||!from){if(from)from.hidden=true;if(!fixW)wrap.style.width=w1+'px';wrap.style.height=h1+'px';return;}
+  wrap.classList.add('instant');if(!fixW)wrap.style.width=w0+'px';wrap.style.height=h0+'px';void wrap.offsetWidth;wrap.classList.remove('instant');
+  from.classList.add('leaving');if(!fixW)from.style.width=w0+'px';
+  to.style.transition='none';to.style.transform=`translateX(${dir*28}px)`;to.style.opacity=0;to.style.filter='blur(3px)';void to.offsetWidth;to.style.transition='';
+  if(!fixW)wrap.style.width=w1+'px';wrap.style.height=h1+'px';
+  from.style.transform=`translateX(${-dir*28}px)`;from.style.opacity=0;from.style.filter='blur(3px)';
+  to.style.transform='';to.style.opacity='';to.style.filter='';
+  wrap._mt=setTimeout(()=>{from.hidden=true;from.classList.remove('leaving');from.style.cssText='';},320);}
+let lastFocus=null,openedAt=0,menuView='main';
+const VIEWS=['main','src','keys'];
+function closeTray(instant){const t=$('#opts');if(t.hidden)return false;hide(t,instant);$('#optsBtn').setAttribute('aria-expanded','false');return true;}
+function closeMenu(instant){const m=$('#menu');if(m.hidden)return false;hide(m,instant);$('#moreBtn').setAttribute('aria-expanded','false');return true;}
+function closePanels(kbd){const any=closeTray(kbd)|closeMenu(kbd);if(any&&lastFocus&&document.contains(lastFocus))lastFocus.focus();return !!any;}
+function openPanel(sel,kbd){/* only the Options tray is a panel now */closeMenu(true);const p=$('#opts');if(!isOpen(p))lastFocus=document.activeElement;openedAt=performance.now();show(p,kbd);$('#optsBtn').setAttribute('aria-expanded','true');sizeTray();$(`#tab-${curTab}`).focus();}
+function openMenu(view='main',kbd){const m=$('#menu');if(view==='src')updSrc();
+  if(m.hidden||!m.classList.contains('in')){closeTray(true);lastFocus=document.activeElement;VIEWS.forEach(v=>{const el=$(`#mv-${v}`);el.hidden=v!==view;el.classList.remove('leaving');el.style.cssText='';});menuView=view;
+    clearTimeout(m._t);m.hidden=false;m.style.transition='none';m.style.width='auto';m.style.height='auto';const t=$(`#mv-${view}`);m.style.width=t.offsetWidth+'px';m.style.height=t.offsetHeight+'px';void m.offsetWidth;m.style.transition='';show(m,kbd);openedAt=performance.now();}
+  else{const dir=VIEWS.indexOf(view)>=VIEWS.indexOf(menuView)?1:-1;morphTo(m,$(`#mv-${menuView}`),$(`#mv-${view}`),dir,kbd);menuView=view;}
+  $('#moreBtn').setAttribute('aria-expanded','true');const v=$(`#mv-${view}`);(v.querySelector('[role=menuitem],.back')||v).focus();}
+document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>closePanels());
+document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagation();openMenu('main',e.detail===0);});
+$('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
+$('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
+document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
+['src','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
+function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
+  $('#srcImg').src=r.img;$('#srcImg').alt=`NASA picture: ${r.name}. The ring marks ${fullPlace()}.`;$('#srcLink').href=`${SVS}${r.svs}/`;placeMk('#srcMk',r);
+  $('#srcCap').textContent=r.map?`The ring marks ${fullPlace()}. Its position is close, not exact, in this prototype.`:'This picture is a view from above the pole, so the place is not marked.';
+  const x=currentX();$('#srcNow').textContent=`At ${fullPlace()}${sp.water&&isLand(cur.lat,cur.lon)?`, sea: ${sp.water}`:''}, you hear ${pitchWords(x)} on ${cur.inst}. That is ${val(x)} ${r.unit}, ${valueWords(x)}.`;
+  if(!$('#menu').hidden&&menuView==='src'){const m=$('#menu');m.style.height=$('#mv-src').offsetHeight+'px';}
+  $('#sTitle').textContent=r.name;$('#sMeta').textContent=`NASA SVS ${r.svs}`;$('#sImg').src=r.img;$('#sImg').alt=`NASA picture: ${r.name}`;$('#sLink').href=`${SVS}${r.svs}/`;placeMk('#sMk',r);}
+function placeMk(sel,r){const mk=$(sel);if(r.map){mk.hidden=false;mk.style.left=((cur.lon+180)/360*100)+'%';mk.style.top=((90-cur.lat)/180*100)+'%';}else mk.hidden=true;}
+
+/* ================= the Options tray: tabs in order of importance ================= */
+const TABS=[['records','Records'],['place','Place'],['instrument','Instrument'],['voice','Voice'],['globe','Globe'],['layout','Layout'],['pin','Pin'],['behaviour','Behaviour']];
+let curTab='records';const trayOpen=()=>!$('#opts').hidden;
+const CK='<svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function opt(group,key,label,sub,onclick,img){const b=document.createElement('button');b.className='opt';b.type='button';b.dataset.g=group;b.dataset.k=key;b.setAttribute('aria-pressed','false');
+  b.innerHTML=`${img?`<img src="${img}" alt="">`:''}<span>${label}${sub?`<small>${sub}</small>`:''}</span>${CK}`;b.onclick=onclick;return b;}
+TABS.forEach(([id,name],i)=>{const t=document.createElement('button');t.className='tab';t.type='button';t.setAttribute('role','tab');t.id=`tab-${id}`;t.textContent=name;t.setAttribute('aria-controls',`tp-${id}`);t.onclick=()=>selectTab(id);$('#tabs').appendChild(t);
+  const p=document.createElement('section');p.className='tp view';p.id=`tp-${id}`;p.setAttribute('role','tabpanel');p.tabIndex=0;p.setAttribute('aria-labelledby',`tab-${id}`);$('#trayBody').appendChild(p);});
+$('#tabs').addEventListener('keydown',e=>{const i=TABS.findIndex(t=>t[0]===curTab);let j=null;if(e.key==='ArrowRight')j=(i+1)%TABS.length;if(e.key==='ArrowLeft')j=(i-1+TABS.length)%TABS.length;if(e.key==='Home')j=0;if(e.key==='End')j=TABS.length-1;if(j!==null){e.preventDefault();selectTab(TABS[j][0],true);$(`#tab-${TABS[j][0]}`).focus();}});
+function selectTab(id,kbd){const prev=curTab;curTab=id;TABS.forEach(([k])=>{const on=k===id;const t=$(`#tab-${k}`);t.setAttribute('aria-selected',on);t.tabIndex=on?0:-1;});$(`#tab-${id}`).scrollIntoView({block:'nearest',inline:'nearest'});
+  const b=$('#trayBody');if(!trayOpen()||prev===id){TABS.forEach(([k])=>$(`#tp-${k}`).hidden=k!==id);sizeTray();return;}
+  const dir=TABS.findIndex(t=>t[0]===id)>TABS.findIndex(t=>t[0]===prev)?1:-1;b.scrollTop=0;morphTo(b,$(`#tp-${prev}`),$(`#tp-${id}`),dir,kbd,true);}
+function sizeTray(){const b=$('#trayBody');const p=$(`#tp-${curTab}`);b.classList.add('instant');b.style.height=p.offsetHeight+'px';void b.offsetWidth;b.classList.remove('instant');}
+const tp=id=>$(`#tp-${id}`);
+const sep=id=>{const d=document.createElement('div');d.className='sep';d.setAttribute('role','separator');tp(id).appendChild(d);};
+function swRow(id,key,label,sub,get,set){const b=document.createElement('button');b.className='opt';b.type='button';b.setAttribute('role','switch');b.dataset.sw=key;b.innerHTML=`<span>${label}${sub?`<small>${sub}</small>`:''}</span><i class="swt" aria-hidden="true"></i>`;b.onclick=()=>{set(!get());syncOpts();};tp(id).appendChild(b);b._get=get;}
+function segRow(id,key,label,choices,get,set){const w=document.createElement('div');w.className='seg-row';const L=`seg-${key}`;w.innerHTML=`<span class="lbl" id="${L}">${label}</span><div class="seg" role="radiogroup" aria-labelledby="${L}"></div>`;const g=w.querySelector('.seg');
+  choices.forEach(([n,v])=>{const b=document.createElement('button');b.type='button';b.setAttribute('role','radio');b.textContent=n;b.dataset.v=v;b.onclick=()=>{set(v);syncOpts();};g.appendChild(b);});
+  g.addEventListener('keydown',e=>{const bs=[...g.children];const i=bs.indexOf(document.activeElement);let j=null;if(e.key==='ArrowRight')j=Math.min(bs.length-1,i+1);if(e.key==='ArrowLeft')j=Math.max(0,i-1);if(j!==null){e.preventDefault();e.stopPropagation();bs[j].click();bs[j].focus();}});g._get=get;tp(id).appendChild(w);}
+const note=(id,text)=>{const p=document.createElement('p');p.className='note';p.textContent=text;tp(id).appendChild(p);};
+/* Records */
+note('records','Pictures from the NASA Earth Information Center. Pick one to hear it.');
+Object.entries(REC).forEach(([k,r])=>tp('records').appendChild(opt('rec',k,r.name,`Plays on ${r.inst}`,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);},r.img)));
+/* Place */
+tp('place').appendChild(opt('place','My place','My place','',()=>goHome(true)));sep('place');
+Object.entries(PLACES).forEach(([n,v])=>tp('place').appendChild(opt('place',n,n,v[2],()=>{goPlace(n);conv&&conv.sendContextualUpdate(`The person moved the globe to ${fullPlace()}.`);})));
+/* Instrument */
+INSTRUMENTS.forEach(n=>tp('instrument').appendChild(opt('inst',n,n[0].toUpperCase()+n.slice(1),'',()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
+sep('instrument');tp('instrument').appendChild(opt('inst','random','Surprise me','A different instrument for each track',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);}));
+/* Voice */
+note('voice','Changing the voice restarts the conversation.');
+VOICES.forEach(v=>tp('voice').appendChild(opt('voice',v.id,v.n,v.d,async()=>{if(cur.voice===v.id)return;cur.voice=v.id;syncOpts();if(conv){caption('juke','Switching my voice. One second.');await endConv('voice');start(lastOpts);}})));
+/* Globe */
+Object.entries(GLOBES).forEach(([k,[n,d]])=>tp('globe').appendChild(opt('globe',k,n,d,()=>setGlobeStyle(k))));
+/* Layout */
+note('layout','Where the player and the NASA source sit on wide screens.');
+Object.entries(LAYOUTS).forEach(([k,v])=>tp('layout').appendChild(opt('layout',k,`Layout ${k}`,v.n,()=>{layout=k;applyLayout();})));
+/* Pin */
+[['Target ring','A thin ring with a dot. The default.'],['Meridian line','The line through the place lights up.'],['Needle tick','A short line touches the place, like a record needle.'],['Lit neighbourhood','No shape. The lines near the place glow.']].forEach(([n,d],i)=>tp('pin').appendChild(opt('pin',String(i),n,d,()=>{O.pin=i;syncOpts();})));
+sep('pin');swRow('pin','dot','Sharp dot','A small solid dot on the place, with any pin.',()=>O.dot,v=>O.dot=v);
+/* Behaviour */
+tp('behaviour').appendChild(opt('beh','focus','Focus on the place','The place turns to the front and stays.',()=>{O.behaviour='focus';stopSpinSound();if(prog&&prog.type==='spin')prog=null;updPlayer();syncOpts();}));
+tp('behaviour').appendChild(opt('beh','spin','Spin the world','The world turns, and you hear each place as it passes.',()=>tools.spin_globe({speed:O.speed})));
+sep('behaviour');segRow('behaviour','speed','Spin speed',[['Slow',8],['Medium',15],['Fast',30]],()=>O.speed,v=>{O.speed=v;if(prog&&prog.type==='spin'){prog.speed=v;updPlayer();}});
+sep('behaviour');segRow('behaviour','wob','Line movement',[['Still',0],['Calm',.5],['Lively',1]],()=>O.wob,v=>O.wob=v);
+function syncOpts(){const on={rec:cur.rec,place:O.behaviour==='focus'?(cur.isHome?'My place':cur.place):null,inst:cur.instMode==='random'?'random':cur.inst,voice:cur.voice,globe:O.style,layout,pin:String(O.pin),beh:O.behaviour};
+  document.querySelectorAll('#trayBody .opt').forEach(b=>b.setAttribute('aria-pressed',on[b.dataset.g]===b.dataset.k));
+  const h=myPlace();const mp=document.querySelector('.opt[data-k="My place"] span');if(mp)mp.innerHTML=`My place<small>${h.fallback?'Vaasa, Finland, used when your location is not shared':fullPlace({place:h.name,country:h.country})}</small>`;
+  document.querySelectorAll('#trayBody [role=switch]').forEach(b=>b.setAttribute('aria-checked',!!b._get()));
+  document.querySelectorAll('#trayBody .seg').forEach(g=>[...g.children].forEach(b=>{const on=+b.dataset.v===g._get();b.setAttribute('aria-checked',on);b.tabIndex=on?0:-1;}));}
+selectTab('records');syncOpts();applyLayout();
+
+/* ================= drag to explore (orb and globe); press and hold opens Options ================= */
+let holdT=null,drag=null,lastTone=0,lastName=0;
+function exploreTo(lat,lon,sound){lat=Math.max(-80,Math.min(80,lat));lon=((lon+540)%360)-180;O.behaviour='explore';O.vt=lat;O.vl=lon;cur.lat=lat;cur.lon=lon;cur.isHome=false;
+  const now=performance.now();if(now-lastName>180){lastName=now;let best=null,bd=1e9;for(const [n,[a,b]] of Object.entries(PLACES)){const d=angDist(lat,lon,a,b)/D2R;if(d<bd){bd=d;best=n;}}
+    if(bd<4){cur.place=best;cur.country=PLACES[best][2];}else if(isLand(lat,lon)){cur.place=`Land at ${Math.abs(lat).toFixed(0)}° ${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(0)}° ${lon>=0?'E':'W'}`;cur.country='';}else{cur.place=oceanName(lat,lon);cur.country='';}
+    updPlayer();}
+  if(sound&&now-lastTone>140){lastTone=now;audio();const sp=samplePoint();const x=base01(cur.rec,sp.lat,sp.lon);tintTo(cur.rec,x);tone(noteOf(x).hz,.3,posOf(lat,lon),.13);}}
+function endExplore(){lastName=0;exploreTo(cur.lat,cur.lon,false);syncOpts();refresh();cur.last=null;conv&&conv.sendContextualUpdate(`The person dragged the globe. The place under the needle is now ${fullPlace()} at latitude ${cur.lat.toFixed(1)}, longitude ${cur.lon.toFixed(1)}. Use it as the current place.`);}
+function wireDrag(el){el.style.touchAction='none';
+  el.addEventListener('pointerdown',e=>{if(!started)return;drag={x:e.clientX,y:e.clientY,moved:false,lat:cur.lat,lon:cur.lon};try{el.setPointerCapture(e.pointerId);}catch(_){}el.style.cursor='grabbing';
+    holdT=setTimeout(()=>{if(drag&&!drag.moved){drag=null;openPanel('#opts');openedAt=performance.now()+300;}},650);});
+  el.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;if(!drag.moved&&Math.hypot(dx,dy)<6)return;
+    if(!drag.moved){drag.moved=true;clearTimeout(holdT);clearInterval(trackTimer);trackTimer=null;stopSpinSound();}const k=180/el.clientWidth;exploreTo(drag.lat+dy*k*.8,drag.lon-dx*k,true);});
+  const end=()=>{clearTimeout(holdT);if(drag&&drag.moved)endExplore();drag=null;el.style.cursor='';};el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);}
+[box,gbox].forEach(el=>{el.style.cursor='pointer';wireDrag(el);});
+
+/* ================= keyboard ================= */
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();
+  if(e.target.matches?.("input,select")){if(k==='escape')e.target.blur();return;}
+  if(!$('#gate').hidden&&!started){if(k==='t'){e.preventDefault();$('#startTyping').click();}return;}
+  if(k==='escape'){if(closeMenu(true)){$('#moreBtn').focus();return;}closePanels(true);return;}
+  if(e.target.closest('#opts,#menu')&&!['o','n','?','/'].includes(k))return;
+  if(e.metaKey||e.ctrlKey||e.altKey)return;
+  if(k==='o'){trayOpen()?closePanels(true):openPanel('#opts',true);}
+  if(k==='n')openMenu('src',true);
+  if(k==='r'&&!conv&&!connecting)talkAgain();
+  if(k==='?'||(k==='/'&&e.shiftKey))openMenu('keys',true);else if(k==='/'){e.preventDefault();closePanels(true);$('#typeIn').focus();}
+  if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
+  if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
+  const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
+  if(ar){e.preventDefault();clearInterval(trackTimer);trackTimer=null;stopSpinSound();exploreTo(cur.lat+ar[0],cur.lon+ar[1],true);clearTimeout(window.__arT);window.__arT=setTimeout(endExplore,500);}});
+
+/* start screen: four versions of the heading to choose from, ?hero=1 to ?hero=4 */
+const HERO=[['Listen to the <em>planet</em>.',"Juke plays NASA's view of Earth as music and tells you what each sound means. We start where you are."],
+ ['Talk to the <em>planet</em>.','Ask Juke about the sea, the air or the ice. You hear NASA data as music, and Juke explains every note.'],
+ ['Hear your place <em>change</em>.','One note for each year since 1981, from NASA pictures of Earth. Juke starts where you are and explains what you hear.'],
+ ['Earth, played as <em>music</em>.','Talk with Juke, pick the sea, the air or the ice, and hear how your part of the world changed.']];
+{const h=HERO[(+new URLSearchParams(location.search).get('hero')||1)-1]||HERO[0];$('#gt').innerHTML=h[0];$('#gd').textContent=h[1];}
+drawShortcuts();updSrc();setRecordColours('sst');loadBright('sst');
+window.__jb={tools,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
+</script>
+</body>
+</html>

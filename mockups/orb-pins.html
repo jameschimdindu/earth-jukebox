@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Orb pins</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Fraunces:opsz,wght@9..144,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0b0807;--ink:#f3e7d8;--mute:#b4a28c;--line:rgba(255,255,255,.12)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;overflow:hidden}
+#orb{position:fixed;inset:0}
+.top{position:fixed;left:20px;right:20px;top:16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;pointer-events:none}
+.top h1{font-family:Fraunces,serif;font-weight:400;font-size:clamp(22px,3vw,30px)}
+.top p{font-size:13px;color:var(--mute);margin-top:4px;max-width:36em}
+.top .note{font-size:12px;color:var(--mute);text-align:right}
+.place{position:fixed;pointer-events:none;font-size:12px;color:var(--ink);white-space:nowrap;transform:translate(14px,-50%);opacity:.85}
+.panel{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);display:flex;flex-direction:column;gap:8px;width:min(1000px,calc(100vw - 20px));padding:12px;border:1px solid var(--line);border-radius:16px;background:rgba(11,8,7,.82);backdrop-filter:blur(10px)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:center}
+.lab{font-size:12px;color:var(--mute);margin:0 4px 0 8px}
+button{font:500 13px Inter;color:var(--ink);background:transparent;border:1px solid var(--line);border-radius:99px;padding:8px 12px;cursor:pointer;min-height:38px}
+button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+button kbd{font:500 11px Inter;opacity:.6;margin-right:6px}
+.sw{width:30px;height:30px;border-radius:50%;padding:0;min-height:0}
+.sw[aria-pressed=true]{outline:2px solid var(--ink);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><h1 id="pName">1. Target ring</h1><p id="pDesc"></p></div>
+  <div class="note">Test page. Base: variant 6, globe with gradient.<br>Keys 1 to 4: pin. D: dot. F: focus. S: spin.</div>
+</div>
+<div id="orb" aria-hidden="true"></div>
+<div class="place" id="placeLabel">Vaasa</div>
+<div class="panel" role="toolbar" aria-label="Test controls">
+  <div class="row" id="pins"><span class="lab">Pin</span></div>
+  <div class="row">
+    <span class="lab">Place</span><span id="places" style="display:flex;gap:6px"></span>
+    <span class="lab">Behaviour</span><button id="focusB" aria-pressed="true">Focus on the place</button><button id="spinB" aria-pressed="false">Spin the world</button>
+    <button id="dotB" aria-pressed="false">Sharp dot</button>
+  </div>
+  <div class="row"><span class="lab">State</span><span id="states" style="display:flex;gap:6px;flex-wrap:wrap"></span><span class="lab">Record</span><span id="colors" style="display:flex;gap:6px"></span></div>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const $=s=>document.querySelector(s);
+const D2R=Math.PI/180;
+
+/* ---------- pins ---------- */
+const PINS=[
+ {n:'Target ring',d:'A thin, sharp circle on the surface around the place, with a small dot inside. It pulses on each note.'},
+ {n:'Meridian line',d:'The one ring that passes through the place lights up fully in the record\'s colour. It is made from the orb\'s own lines.'},
+ {n:'Needle tick',d:'A short line touches the surface from outside, like a record needle on the groove.'},
+ {n:'Lit neighbourhood',d:'No added shape. The lines near the place glow brighter, and only they react to the music.'},
+];
+let pi=0,dotOn=false,mode='focus';
+PINS.forEach((p,i)=>{const b=document.createElement('button');b.innerHTML=`<kbd>${i+1}</kbd>${p.n}`;b.onclick=()=>setPin(i);$('#pins').appendChild(b);});
+function setPin(i){pi=i;$('#pName').textContent=`${i+1}. ${PINS[i].n}`;$('#pDesc').textContent=PINS[i].d+(dotOn?' Sharp dot on.':'');[...$('#pins').querySelectorAll('button')].forEach((b,k)=>b.setAttribute('aria-pressed',k===i));}
+function setMode(m){mode=m;$('#focusB').setAttribute('aria-pressed',m==='focus');$('#spinB').setAttribute('aria-pressed',m==='spin');}
+$('#focusB').onclick=()=>setMode('focus');$('#spinB').onclick=()=>setMode('spin');
+$('#dotB').onclick=()=>{dotOn=!dotOn;$('#dotB').setAttribute('aria-pressed',dotOn);setPin(pi);};
+addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(/^[1-4]$/.test(k))setPin(+k-1);if(k==='d')$('#dotB').click();if(k==='f')setMode('focus');if(k==='s')setMode('spin');});
+
+/* ---------- places ---------- */
+const PLACES={Vaasa:[63.1,21.6],Lagos:[6.45,3.39],Tokyo:[35.7,139.7],'New York':[40.7,-74],Sydney:[-33.9,151.2]};
+let place='Vaasa';
+Object.keys(PLACES).forEach(k=>{const b=document.createElement('button');b.textContent=k;b.setAttribute('aria-pressed',k==='Vaasa');b.onclick=()=>{place=k;$('#placeLabel').textContent=k;$('#places').querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));};$('#places').appendChild(b);});
+
+/* ---------- colour maps ---------- */
+const RAMPS={Sea:['#3f7fe0','#5fd0e0','#f2c060','#ff7a5c'],Air:['#8a7cff','#5fc0f0','#f4d36a','#ff6a50'],Ice:['#6fa8d0','#a8d8f0','#e6f4fb','#ffffff'],Plants:['#d0b050','#9fd06a','#4fcf8a','#3fb0a0'],Fire:['#ff4a3c','#ff8a5c','#ffb070','#ffe08a']};
+let rampT=RAMPS.Sea.map(c=>new THREE.Color(c)),ramp=rampT.map(c=>c.clone());
+Object.entries(RAMPS).forEach(([k,r])=>{const b=document.createElement('button');b.className='sw';b.style.background=`linear-gradient(135deg,${r.join(',')})`;b.title=k;b.setAttribute('aria-label',k);b.setAttribute('aria-pressed',k==='Sea');
+  b.onclick=()=>{rampT=r.map(c=>new THREE.Color(c));document.querySelectorAll('.sw').forEach(x=>x.setAttribute('aria-pressed',x===b));};$('#colors').appendChild(b);});
+const tmp=new THREE.Color(),WHITE=new THREE.Color(1,1,1);
+function rampAt(x){x=Math.min(.999,Math.max(0,x))*3;const i=Math.floor(x),f=x-i;return tmp.copy(ramp[i]).lerp(ramp[i+1],f);}
+
+/* ---------- scene ---------- */
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));$('#orb').appendChild(renderer.domElement);
+const scene=new THREE.Scene();const cam=new THREE.PerspectiveCamera(32,1,.1,100);
+function size(){renderer.setSize(innerWidth,innerHeight);cam.aspect=innerWidth/innerHeight;cam.position.set(0,.35,innerWidth<innerHeight?12:9);cam.lookAt(0,.35,0);cam.updateProjectionMatrix();}addEventListener('resize',size);size();
+const G=new THREE.Group();scene.add(G);G.position.y=.55;
+const SEG=260,R=1.3,N=46;const rings=[];
+const lineMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+  vertexShader:`attribute vec4 c;varying vec4 vc;varying float vz;void main(){vc=c;vz=(modelMatrix*vec4(position,1.)).z;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+  fragmentShader:`varying vec4 vc;varying float vz;void main(){float a=mix(.35,1.,smoothstep(-1.4,1.,vz));gl_FragColor=vec4(vc.rgb,vc.a*a);}`});
+for(let i=0;i<N;i++){const s=-1+2*(i+.5)/N;const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(new Float32Array((SEG+1)*3),3));g.setAttribute('c',new THREE.BufferAttribute(new Float32Array((SEG+1)*4),4));
+  const line=new THREE.Line(g,lineMat);G.add(line);rings.push({line,s,r:Math.sqrt(1-s*s),seed:Math.random()*100});}
+/* rings are slices along x (vertical lines on screen). geography is fixed to world axes and rotated by lon and lat. */
+
+/* pin objects */
+const pinMat=new THREE.LineBasicMaterial({color:0xffffff,transparent:true});
+const target=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({length:64},(_,k)=>new THREE.Vector3(Math.cos(k/64*Math.PI*2),Math.sin(k/64*Math.PI*2),0))),pinMat);G.add(target);
+const target2=new THREE.LineLoop(target.geometry,pinMat.clone());G.add(target2);
+const tick=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),pinMat);G.add(tick);
+const dotTex=(()=>{const c=document.createElement('canvas');c.width=c.height=64;const g=c.getContext('2d');g.fillStyle='#fff';g.beginPath();g.arc(32,32,26,0,Math.PI*2);g.fill();return new THREE.CanvasTexture(c);})();
+const dot=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,transparent:true,depthTest:false}));dot.scale.setScalar(.055);G.add(dot);
+const tickCap=new THREE.Sprite(new THREE.SpriteMaterial({map:dotTex,transparent:true,depthTest:false}));tickCap.scale.setScalar(.045);G.add(tickCap);
+
+/* land */
+let land=null;const img=new Image();img.crossOrigin='anonymous';img.src='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-topology.png';
+img.onload=()=>{const c=document.createElement('canvas');c.width=360;c.height=180;const g=c.getContext('2d');g.drawImage(img,0,0,360,180);const d=g.getImageData(0,0,360,180).data;land=new Uint8Array(360*180);for(let i=0;i<land.length;i++)land[i]=d[i*4]>12?1:0;};
+const isLand=(lat,lon)=>{if(!land)return 0;const x=Math.floor(((lon+180)%360+360)%360),y=Math.min(179,Math.max(0,Math.floor(90-lat)));return land[y*360+x];};
+
+/* geo transform: world point -> lat/lon given view lon (vl) and view lat (vt) */
+let vl=21.6,vt=40,spinLon=0;
+function toGeo(x,y,z){const ct=Math.cos(vt*D2R),st=Math.sin(vt*D2R);const y2=y*ct+z*st,z2=-y*st+z*ct;const lat=Math.asin(Math.max(-1,Math.min(1,y2)))/D2R,lon=Math.atan2(x,z2)/D2R+vl;return [lat,lon];}
+function fromGeo(lat,lon){const la=lat*D2R,lo=(lon-vl)*D2R;const x=Math.sin(lo)*Math.cos(la),y2=Math.sin(la),z2=Math.cos(lo)*Math.cos(la);const ct=Math.cos(vt*D2R),st=Math.sin(vt*D2R);return new THREE.Vector3(x,y2*ct-z2*st,y2*st+z2*ct);}
+const angDist=(a1,o1,a2,o2)=>{const p1=a1*D2R,p2=a2*D2R,dl=(o2-o1)*D2R;return Math.acos(Math.max(-1,Math.min(1,Math.sin(p1)*Math.sin(p2)+Math.cos(p1)*Math.cos(p2)*Math.cos(dl))));};
+
+/* ---------- sound ---------- */
+let state='music',AC,an,data,mic,osc,level=0,smooth=0,beat=0;
+const STATES=[['idle','Idle'],['speaking','Juke talking'],['listening','You talking (mic)'],['thinking','Thinking'],['music','Music at the place']];
+STATES.forEach(([s,l])=>{const b=document.createElement('button');b.textContent=l;b.dataset.s=s;b.setAttribute('aria-pressed',s===state);b.onclick=()=>setState(s);$('#states').appendChild(b);});
+function ensure(){if(AC)return;AC=new AudioContext();an=AC.createAnalyser();an.fftSize=512;data=new Uint8Array(512);}
+const rms=()=>{an.getByteTimeDomainData(data);let s=0;for(const v of data){const x=(v-128)/128;s+=x*x;}return Math.sqrt(s/data.length);};
+async function setState(s){state=s;$('#states').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s===s));ensure();if(osc){osc.stop();osc=null;}
+  if(s==='listening'&&!mic){try{mic=await navigator.mediaDevices.getUserMedia({audio:true});AC.createMediaStreamSource(mic).connect(an);}catch(e){alert('Microphone blocked: '+e.message);}}
+  if(s==='music'&&AC.state==='running'){const g=AC.createGain();osc=AC.createOscillator();osc.type='triangle';osc.connect(g);g.connect(an);g.connect(AC.destination);osc.start();const Nn=[262,294,330,392,440,392,330,494,523,440];let k=0;
+    const step=()=>{if(state!=='music'||!osc)return;osc.frequency.setTargetAtTime(Nn[k++%Nn.length],AC.currentTime,.02);g.gain.setValueAtTime(.16,AC.currentTime);g.gain.exponentialRampToValueAtTime(.03,AC.currentTime+.32);setTimeout(step,360);};step();}}
+document.addEventListener('pointerdown',()=>{if(state==='music'&&!osc){ensure();AC.resume().then(()=>setState('music'));}},{once:true});
+
+/* ---------- animate ---------- */
+const n3=(x,y,z)=>Math.sin(x*1.7+z)*Math.cos(y*1.3-z*.7)+.5*Math.sin(x*3.1-y*2.3+z*1.9);
+const t0=performance.now();const pl=new THREE.Vector3();
+function loop(now){const t=(now-t0)/1000;
+  const musicSim=Math.max(0,Math.sin(t*Math.PI*2/.72))**3;
+  if(state==='speaking')level=Math.max(0,Math.sin(t*9))*Math.max(0,Math.sin(t*2.3+1))*.9;
+  else if(state==='listening')level=an?Math.min(1,rms()*5):0;
+  else if(state==='music')level=osc&&an?Math.min(1,rms()*6):musicSim*.8;
+  else level=0;
+  smooth+=(level-smooth)*(level>smooth?.4:.1);
+  ramp.forEach((c,i)=>c.lerp(rampT[i],.06));
+  const [plat,plon]=PLACES[place];
+  if(mode==='focus'){const dl=((plon-vl+540)%360)-180;vl+=dl*.05+Math.sin(t*.4)*.03;vt+=(plat*.75-vt)*.05;}
+  else{vl+=(.25+smooth*.3);vt+=(plat*.75-vt)*.05;}
+  const base=.055,local=state==='music',whole=state==='speaking'||state==='listening';
+  const amp=(state==='thinking'?.05:0)+(whole?smooth*.32:0);
+  const meridS=fromGeo(plat,plon).x; // which slice holds the place
+  let meridI=0,best=9;rings.forEach((r,i)=>{const d=Math.abs(r.s-meridS);if(d<best){best=d;meridI=i;}});
+  rings.forEach((ring,i)=>{const pos=ring.line.geometry.attributes.position.array,col=ring.line.geometry.attributes.c.array;
+    const ripple=state==='listening'?Math.sin(i*.7-t*8)*smooth*.15:0;
+    for(let k=0;k<=SEG;k++){const a=k/SEG*Math.PI*2,cy=Math.cos(a),cz=Math.sin(a);
+      const [lat,lon]=toGeo(ring.s,ring.r*cy,ring.r*cz);
+      const near=Math.exp(-Math.pow(angDist(lat,lon,plat,plon)/.32,2));
+      let d=1+base*n3(cy*1.5+ring.seed,cz*1.5,t*.5+i*.2)-.035*Math.max(0,Math.sin(a*2+ring.seed)-.92)*12+amp*n3(cy*3+i*.4,cz*3,t*2.2+ring.seed)+ripple;
+      if(local)d+=near*smooth*.16;
+      if(state==='thinking')d+=.06*Math.sin(a*3+t*3+i*.5);
+      const x=ring.s*R,y=ring.r*cy*d*R,z=ring.r*cz*d*R;pos[k*3]=x;pos[k*3+1]=y;pos[k*3+2]=z;
+      const L=isLand(lat,lon);let c=rampAt(1-Math.abs(lat)/90).clone(),alpha;
+      if(L){alpha=1;c.lerp(WHITE,.4);}else{alpha=.07;c.multiplyScalar(.6);}
+      if(pi===3){const nb=Math.exp(-Math.pow(angDist(lat,lon,plat,plon)/.5,2));if(nb>.03){const g=nb*(.9+smooth*.8);alpha=Math.min(1,alpha+g*1.4);c.lerp(rampAt(.9).clone().lerp(WHITE,.3),Math.min(1,g));}}
+      if(pi===1&&i===meridI){alpha=.95;c=rampAt(.9).clone().lerp(WHITE,.35);}
+      col[k*4]=c.r;col[k*4+1]=c.g;col[k*4+2]=c.b;col[k*4+3]=alpha;}
+    ring.line.geometry.attributes.position.needsUpdate=true;ring.line.geometry.attributes.c.needsUpdate=true;});
+  /* pin geometry */
+  pl.copy(fromGeo(plat,plon)).multiplyScalar(R);const front=pl.z>-.1;const pc=rampAt(.9).clone().lerp(WHITE,.45);
+  target.visible=target2.visible=pi===0&&front;tick.visible=tickCap.visible=pi===2&&front;dot.visible=(pi===0||dotOn)&&front;
+  if(pi===0){const n=pl.clone().normalize();[target,target2].forEach((tg,j)=>{tg.position.copy(pl).multiplyScalar(1.004);tg.lookAt(pl.clone().multiplyScalar(2).add(G.position));
+      const pulse=j===0?.075+smooth*.03:.075+((t*1.4)%1)*.12;tg.scale.setScalar(pulse);tg.material.color.copy(pc);tg.material.opacity=j===0?1:.7*(1-((t*1.4)%1));});}
+  if(pi===2){const n=pl.clone().normalize();const up=new THREE.Vector3(.5,.85,.3).normalize();const dir=n.clone().add(up.multiplyScalar(.6)).normalize();
+    const tip=pl.clone().multiplyScalar(1.01),tail=tip.clone().add(dir.multiplyScalar(.42-smooth*.05));tick.geometry.setFromPoints([tail,tip]);tick.material.color.copy(pc);tickCap.position.copy(tail);tickCap.material.color.copy(pc);}
+  dot.position.copy(pl).multiplyScalar(1.01);dot.material.color.copy(pc);dot.scale.setScalar(.05+smooth*.015);
+  /* label */
+  const sp=pl.clone().add(G.position).project(cam);const lab=$('#placeLabel');lab.style.left=((sp.x+1)/2*innerWidth)+'px';lab.style.top=((1-sp.y)/2*innerHeight)+'px';lab.style.opacity=front?.9:0;
+  renderer.render(scene,cam);requestAnimationFrame(loop);}
+{const q=new URLSearchParams(location.search);setPin(Math.max(0,(+q.get('p')||1)-1));if(q.get('dot'))$('#dotB').click();if(q.get('m'))setMode(q.get('m'));if(q.get('s'))state=q.get('s');}
+requestAnimationFrame(loop);
+window.__pins={setPin,setMode};
+</script>
+</body>
+</html>

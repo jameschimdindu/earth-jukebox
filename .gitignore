@@ -1,0 +1,9 @@
+# secrets never go to git
+.env
+.env.*
+*.key
+# local tools
+.claude/settings.local.json
+.vercel
+node_modules
+.DS_Store

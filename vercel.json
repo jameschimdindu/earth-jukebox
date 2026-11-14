@@ -1,0 +1,5 @@
+{
+  "buildCommand": "",
+  "outputDirectory": "mockups",
+  "rewrites": [{ "source": "/", "destination": "/voice-native.html" }]
+}

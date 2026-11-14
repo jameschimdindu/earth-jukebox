@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Earth Jukebox</title>
+<style>
+@font-face{font-family:Geist;src:url(fonts/geist/Geist-Variable.woff2) format('woff2');font-weight:100 900;font-display:swap}
+@font-face{font-family:'Geist Mono';src:url(fonts/geist/GeistMono-Variable.woff2) format('woff2');font-weight:100 900;font-display:swap}
+.logo{display:inline-flex;align-items:center;gap:10px;letter-spacing:.16em;font-size:14px;text-transform:uppercase}.logo svg{width:26px;height:26px;color:var(--accent)}.logo b{font-weight:700}.logo span{font-weight:300}
+kbd{font:500 11px 'Geist Mono',monospace;min-width:20px;height:20px;padding:0 5px;border-radius:5px;border:1px solid var(--line);display:inline-grid;place-items:center;color:var(--mute)}
+:root{
+  --bg:#120d0a;--bg2:#1b1410;--panel:#211912;--line:#3a2c21;--ink:#f3e7d8;--mute:#b4a28c;
+  --accent:#f2a541;--on-accent:#120d0a;--fs:1;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{font-size:calc(16px * var(--fs))}
+html,body{background:var(--bg);color:var(--ink);font-family:Geist,system-ui,sans-serif;min-height:100%}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.07;z-index:100;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.skip{position:absolute;left:12px;top:-60px;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:8px;z-index:200}
+.skip:focus{top:12px}
+.serif{font-family:Geist,sans-serif}
+.accent{color:var(--accent);transition:color .3s}
+
+/* header */
+header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px clamp(16px,3vw,28px);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;background:rgba(18,13,10,.9);backdrop-filter:blur(10px)}
+.brand{font-family:Geist,sans-serif;font-weight:500;font-size:clamp(20px,2.2vw,24px);letter-spacing:-.02em}
+.seg{display:flex;padding:4px;border:1px solid var(--line);border-radius:99px;background:var(--bg2)}
+.seg button{border:0;background:transparent;padding:9px 16px;border-radius:99px;cursor:pointer;color:var(--mute);display:flex;gap:8px;align-items:center;min-height:40px}
+.seg button[aria-checked=true]{background:var(--ink);color:var(--bg)}
+.seg svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.8}
+.iconbtn{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:transparent;display:grid;place-items:center;cursor:pointer}
+.iconbtn svg{width:18px;height:18px;stroke:var(--mute);fill:none;stroke-width:1.7}
+.toprow{display:flex;gap:10px;align-items:center}
+
+/* ===== AUDIO MODE ===== */
+#audioView{max-width:1180px;margin:0 auto;padding:clamp(16px,3vw,32px);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:clamp(20px,3vw,40px);align-items:start}
+.guide{display:flex;flex-direction:column;gap:18px}
+.stage{display:flex;align-items:center;gap:18px}
+#orb{width:96px;height:96px;flex:none}
+.stage h1{font-family:Geist,sans-serif;font-weight:300;font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;line-height:1.05}
+.stage p{color:var(--mute);margin-top:6px;font-size:.95rem}
+.convo{display:flex;flex-direction:column;gap:10px;max-height:46vh;overflow:auto;padding-right:4px;scroll-behavior:smooth}
+.msg{max-width:88%;padding:12px 16px;border-radius:16px;line-height:1.55;font-size:1rem;animation:in .35s ease both}
+.msg.g{background:var(--panel);border:1px solid var(--line);border-top-left-radius:4px}
+.msg.g .who{font-size:.78rem;color:var(--mute);margin-bottom:4px;display:flex;gap:6px;align-items:center}
+.msg.u{align-self:flex-end;background:var(--ink);color:var(--bg);border-top-right-radius:4px}
+.msg .snd{display:inline-flex;gap:6px;align-items:center;margin-top:8px;font-family:'Geist Mono',monospace;font-size:.8rem;padding:5px 10px;border-radius:99px;border:1px solid var(--line);color:var(--accent)}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+.options{display:flex;flex-wrap:wrap;gap:8px}
+.opt{display:flex;gap:10px;align-items:center;padding:10px 14px 10px 10px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);cursor:pointer;min-height:48px;text-align:left}
+.opt:hover{border-color:var(--mute)}
+.opt kbd{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;background:var(--panel);border:1px solid var(--line);font-family:'Geist Mono',monospace;font-size:.75rem;color:var(--mute)}
+.say{display:flex;gap:8px;align-items:center;padding:6px;border:1px solid var(--line);border-radius:16px;background:var(--bg2)}
+.say input{flex:1;min-width:0;background:transparent;border:0;padding:10px 6px;font-size:1rem}
+.say input::placeholder{color:var(--mute)}
+.say input:focus{outline:none}
+.mic{width:48px;height:48px;border-radius:12px;border:0;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;cursor:pointer;transition:background .3s}
+.mic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9}
+.mic.live{animation:pulse 1s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 8px rgba(242,165,65,.18)}}
+.send{height:48px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:transparent;cursor:pointer}
+
+.hearing{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:clamp(16px,2vw,22px);position:sticky;top:90px}
+.hearing h2{font-family:Geist,sans-serif;font-weight:500;font-size:1.35rem}
+.hearing .now{display:flex;justify-content:space-between;align-items:baseline;margin-top:6px;color:var(--mute);font-size:.9rem}
+.big{display:flex;align-items:baseline;gap:10px;margin:14px 0 6px}
+.big b{font-family:Geist,sans-serif;font-weight:300;font-size:clamp(44px,5vw,58px);letter-spacing:-.03em;line-height:1}
+.big span{color:var(--mute)}
+.hrow{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,1.1fr);gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}
+.hrow svg{width:22px;height:22px;stroke:var(--accent);fill:none;stroke-width:1.7;transition:stroke .3s}
+.hrow .s{font-family:'Geist Mono',monospace;font-size:.82rem}
+.hrow .m{font-size:.9rem;color:var(--mute)}
+.hrow.flash{animation:flash .6s}
+@keyframes flash{30%{background:rgba(255,255,255,.06)}}
+.player{display:flex;gap:10px;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.play{width:52px;height:52px;border-radius:50%;background:var(--accent);border:0;display:grid;place-items:center;cursor:pointer;flex:none;transition:background .3s}
+.play svg{width:20px;height:20px;fill:var(--on-accent)}
+.prog{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s,background .3s}
+.yr{font-family:Geist,sans-serif;font-size:1.6rem;font-weight:300;min-width:64px;text-align:right}
+.note{font-size:.78rem;color:var(--mute);margin-top:14px}
+
+/* start gate */
+#gate{position:fixed;inset:0;z-index:60;background:rgba(18,13,10,.96);display:grid;place-items:center;padding:24px;text-align:center}
+#gate h1{font-family:Geist,sans-serif;font-weight:300;font-size:clamp(40px,7vw,76px);letter-spacing:-.04em;line-height:1}
+#gate h1 em{color:var(--accent)}
+#gate p{color:var(--mute);max-width:30em;margin:16px auto 28px;line-height:1.6}
+.cta{display:inline-flex;gap:12px;align-items:center;padding:16px 26px;border-radius:99px;border:0;background:var(--accent);color:var(--on-accent);font-weight:600;font-size:1.05rem;cursor:pointer}
+.cta svg{width:20px;height:20px;fill:currentColor}
+.linkbtn{background:none;border:0;color:var(--mute);text-decoration:underline;cursor:pointer;margin-top:18px;display:block;margin-inline:auto;padding:10px}
+
+/* ===== VISUAL MODE ===== */
+#visualView{display:grid;grid-template-columns:270px 1fr 320px;grid-template-rows:minmax(0,1fr) 110px;grid-template-areas:"c m n" "f f f";height:calc(100vh - 73px)}
+#visualView[hidden],#audioView[hidden]{display:none}
+.crate{grid-area:c;border-right:1px solid var(--line);padding:18px 16px;overflow:auto}
+.crate h2{font-family:Geist,sans-serif;font-weight:500;font-size:1.05rem;margin:14px 4px 8px}
+.crate h2:first-child{margin-top:0}
+.sleeve{display:flex;gap:12px;align-items:center;padding:8px;border-radius:10px;margin-bottom:6px;cursor:grab;border:1px solid transparent;width:100%;background:transparent;text-align:left;min-height:56px}
+.sleeve:hover{background:var(--bg2)}
+.sleeve[aria-pressed=true]{background:var(--panel);border-color:var(--line)}
+.cover{width:46px;height:46px;border-radius:4px;flex:none;box-shadow:0 6px 16px rgba(0,0,0,.45)}
+.sleeve b{font-family:Geist,sans-serif;font-weight:500;font-size:.98rem;display:block}
+.sleeve small{color:var(--mute);font-size:.78rem}
+.sleeve .ext{font-size:.68rem;padding:2px 6px;border-radius:99px;border:1px solid var(--line);color:var(--mute);margin-left:6px}
+main.deck{grid-area:m;position:relative;overflow:hidden}
+#globe{position:absolute;inset:0;touch-action:none}
+.deck.drop::after{content:"Drop to play";position:absolute;inset:16px;border:2px dashed var(--accent);border-radius:24px;display:grid;place-items:center;font-family:Geist,sans-serif;font-size:1.6rem;color:var(--accent);background:rgba(18,13,10,.35)}
+.title{position:absolute;left:24px;top:18px;right:24px;pointer-events:none}
+.title h1{font-family:Geist,sans-serif;font-weight:300;font-size:clamp(30px,4vw,44px);letter-spacing:-.03em;line-height:1}
+.title h1 em{color:var(--accent);transition:color .3s}
+.title p{color:var(--mute);font-size:.88rem;margin-top:8px;max-width:30em}
+.deck-tools{position:absolute;right:18px;top:18px;display:flex;gap:8px}
+.chip{font-size:.8rem;padding:9px 14px;border-radius:99px;border:1px solid var(--line);background:rgba(18,13,10,.6);cursor:pointer;min-height:40px}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+#arm{position:absolute;right:5%;top:8%;width:240px;height:336px;pointer-events:none}
+.tip{position:absolute;padding:10px 14px;background:rgba(18,13,10,.85);backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:12px;font-size:.78rem;pointer-events:none;transform:translate(18px,-50%);white-space:nowrap;color:var(--mute)}
+.tip b{font-family:Geist,sans-serif;font-size:1.25rem;font-weight:500;color:var(--accent);display:block;transition:color .3s}
+.hint{position:absolute;bottom:14px;left:24px;font-size:.8rem;color:var(--mute);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.notes{grid-area:n;border-left:1px solid var(--line);padding:18px 20px;overflow:auto}
+.reading h2{font-family:Geist,sans-serif;font-weight:500;font-size:1.4rem}
+.reading .co{font-family:'Geist Mono',monospace;font-size:.75rem;color:var(--mute);margin-top:2px}
+.anom{display:inline-block;margin-top:8px;font-size:.78rem;padding:5px 10px;border-radius:99px;border:1px solid var(--accent);color:var(--accent);transition:.3s}
+.notes h3{font-family:Geist,sans-serif;font-weight:500;font-size:1.05rem;margin:22px 0 4px}
+.liner{font-family:Geist,sans-serif;font-size:.95rem;line-height:1.6;color:#e2d2bd}
+.src{margin-top:10px;font-size:.75rem;color:var(--mute);line-height:1.6}
+.nasa{margin-top:14px;display:flex;gap:10px;align-items:center;width:100%;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--bg2);cursor:pointer;text-align:left}
+.nasa img{width:64px;height:36px;object-fit:cover;border-radius:4px;background:var(--panel)}
+.nasa span{font-size:.85rem}
+.nasa small{display:block;color:var(--mute);font-size:.75rem}
+.legend{height:10px;border-radius:5px;margin-top:10px}
+.legend-l{display:flex;justify-content:space-between;font-size:.72rem;color:var(--mute);margin-top:4px;font-family:'Geist Mono',monospace}
+footer.bar{grid-area:f;border-top:1px solid var(--line);display:grid;grid-template-columns:270px 1fr 320px;align-items:center}
+.transport{display:flex;gap:10px;align-items:center;padding:0 20px}
+.tl{padding:0 10px;position:relative}
+#wave{width:100%;height:52px;display:block;cursor:pointer}
+.years{display:flex;justify-content:space-between;font-family:'Geist Mono',monospace;font-size:.68rem;color:var(--mute);margin-top:4px}
+.yearbig{padding:0 22px;display:flex;align-items:baseline;gap:10px}
+.yearbig b{font-family:Geist,sans-serif;font-size:2.4rem;font-weight:300}
+.yearbig span{font-size:.78rem;color:var(--mute)}
+
+/* overlays */
+.scrim{position:fixed;inset:0;z-index:70;background:rgba(8,5,4,.72);display:grid;place-items:center;padding:16px}
+.scrim[hidden]{display:none}
+.modal{width:min(760px,100%);max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:clamp(18px,3vw,28px);position:relative}
+.modal h2{font-family:Geist,sans-serif;font-weight:500;font-size:1.6rem;letter-spacing:-.01em;padding-right:44px}
+.modal .meta{color:var(--mute);font-size:.85rem;margin-top:4px}
+.modal figure{margin:18px 0 0;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#000}
+.modal figure img{display:block;width:100%;height:auto}
+.modal figcaption{padding:12px 14px;font-size:.85rem;color:var(--mute);background:var(--bg2)}
+.modal .x{position:absolute;right:16px;top:16px}
+.modal .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.btn{display:inline-flex;gap:8px;align-items:center;padding:12px 18px;border-radius:99px;border:1px solid var(--line);background:transparent;cursor:pointer;text-decoration:none;color:var(--ink);min-height:44px}
+.btn.pri{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.set{display:grid;gap:18px;margin-top:18px}
+.set label{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.set input[type=range]{width:50%;accent-color:var(--accent)}
+
+/* onboarding */
+#tour{position:fixed;inset:0;z-index:65;pointer-events:none}
+#tour[hidden]{display:none}
+.spot{position:fixed;border-radius:18px;box-shadow:0 0 0 9999px rgba(8,5,4,.72);transition:all .5s cubic-bezier(.2,.8,.2,1);pointer-events:none;border:1.5px solid var(--accent)}
+.coach{position:fixed;width:min(340px,calc(100vw - 32px));background:var(--ink);color:var(--bg);border-radius:16px;padding:18px;pointer-events:auto;transition:all .5s cubic-bezier(.2,.8,.2,1)}
+.coach .n{font-size:.78rem;color:#6b5a48}
+.coach h3{font-family:Geist,sans-serif;font-weight:500;font-size:1.3rem;margin-top:4px;line-height:1.2}
+.coach p{font-size:.9rem;margin-top:6px;line-height:1.5;color:#3b2f24}
+.coach .row{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.coach .row button{border:0;padding:10px 16px;border-radius:99px;cursor:pointer;min-height:40px}
+.coach .next{background:var(--bg);color:var(--ink)}
+.coach .skipt{background:transparent;color:#5a4a3a;text-decoration:underline}
+.ghost{position:fixed;width:54px;height:54px;border-radius:6px;z-index:66;pointer-events:none;box-shadow:0 10px 30px rgba(0,0,0,.6)}
+.hand{position:fixed;width:40px;height:40px;z-index:66;pointer-events:none}
+
+@media (max-width:1199px){
+  #visualView{grid-template-columns:1fr 300px;grid-template-rows:minmax(0,1fr) auto 110px;grid-template-areas:"m n" "c n" "f f"}
+  .crate{border-right:0;border-top:1px solid var(--line);display:flex;gap:8px;overflow-x:auto;padding:12px 16px;align-items:center}
+  .crate h2{display:none}
+  .sleeve{width:auto;flex:none;margin:0}
+  footer.bar{grid-template-columns:auto 1fr auto}
+  #arm{width:190px;height:266px}
+}
+@media (max-width:900px){
+  #audioView{grid-template-columns:1fr}
+  .hearing{position:static}
+  .convo{max-height:none}
+}
+@media (max-width:767px){
+  header.top{flex-wrap:wrap}
+  .seg button{padding:8px 12px}
+  #visualView{display:flex;flex-direction:column;height:auto;padding-bottom:calc(86px + env(safe-area-inset-bottom))}
+  main.deck{height:62vh;min-height:430px}
+  .deck-tools{top:auto;bottom:52px;right:16px}
+  .title{left:16px;right:16px;top:14px}
+  #arm{right:-8%;top:3%;width:150px;height:210px}
+  .crate{order:3;scroll-snap-type:x mandatory}
+  .sleeve{scroll-snap-align:start;background:var(--bg2)}
+  .notes{order:4;border-left:0;border-top:1px solid var(--line);overflow:visible}
+  .hint{left:16px;bottom:16px;right:16px}
+  footer.bar{position:fixed;left:0;right:0;bottom:0;z-index:30;height:calc(86px + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);grid-template-columns:auto 1fr auto;background:rgba(18,13,10,.95);backdrop-filter:blur(12px)}
+  .transport{padding:0 0 0 12px}.transport .iconbtn{display:none}
+  .years span:nth-child(even){visibility:hidden}
+  .yearbig{padding:0 14px 0 4px;flex-direction:column;gap:0;align-items:flex-end}
+  .yearbig b{font-size:1.6rem}
+  .msg{max-width:94%}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+  <div>
+    <h1 id="gateTitle">Hear the <em>planet</em></h1>
+    <p>Earth Jukebox turns NASA's pictures of Earth into sound. A voice guide talks you through it. Turn your sound on.</p>
+    <button class="cta" id="startBtn" autofocus><svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>Start listening</button>
+    <button class="linkbtn" id="startVisual">I want to look first</button>
+  </div>
+</div>
+
+<header class="top">
+  <div class="logo" aria-label="Earth Jukebox"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 14v4m6-10v16m5-21v26m5-20v14m6-10v6" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg><b>Earth</b><span>Jukebox</span></div>
+  <div class="toprow">
+    <div class="seg" role="radiogroup" aria-label="Mode">
+      <button role="radio" aria-checked="true" data-mode="audio"><svg viewBox="0 0 24 24"><path d="M3 10v4M7 7v10M11 4v16M15 8v8M19 11v2"/></svg>Audio</button>
+      <button role="radio" aria-checked="false" data-mode="visual"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>Visual</button>
+    </div>
+    <button class="iconbtn" id="settingsBtn" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg></button>
+  </div>
+</header>
+
+<div id="main">
+<!-- AUDIO MODE -->
+<section id="audioView" aria-label="Audio guide">
+  <div class="guide">
+    <div class="stage">
+      <canvas id="orb" aria-hidden="true"></canvas>
+      <div><h1>The guide</h1><p id="status">Waiting to start</p></div>
+    </div>
+    <div class="convo" id="convo" role="log" aria-live="polite" aria-label="Conversation"></div>
+    <div class="options" id="options" role="group" aria-label="Your answer"></div>
+    <form class="say" id="sayForm" autocomplete="off">
+      <button type="button" class="mic" id="mic" aria-label="Talk to the guide"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+      <label class="sr" for="sayInput">Type your answer</label>
+      <input id="sayInput" placeholder="Say or type a topic or a city, like Lagos">
+      <button class="send">Send</button>
+    </form>
+  </div>
+
+  <aside class="hearing" aria-labelledby="hearTitle">
+    <h2 id="hearTitle">What you're hearing</h2>
+    <div class="now"><span id="hPlace">Nothing yet</span><span id="hRecord"></span></div>
+    <div class="big"><b id="hVal" class="accent">–</b><span id="hUnit"></span></div>
+    <div class="hrow" id="rNote"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><span class="s" id="sNote">Note</span><span class="m" id="mNote">The value. Higher means more.</span></div>
+    <div class="hrow" id="rDrum"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="8" rx="8" ry="3"/><path d="M4 8v8c0 1.7 3.6 3 8 3s8-1.3 8-3V8"/></svg><span class="s" id="sDrum">Drum</span><span class="m" id="mDrum">Hotter than normal for the date.</span></div>
+    <div class="hrow" id="rTempo"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6"/></svg><span class="s" id="sTempo">Tempo</span><span class="m" id="mTempo">How fast it changes.</span></div>
+    <div class="hrow" id="rPan"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg><span class="s" id="sPan">Left or right</span><span class="m" id="mPan">West is left. East is right.</span></div>
+    <div class="hrow" id="rInst"><svg viewBox="0 0 24 24"><path d="M4 20l8-16 8 16M7 14h10"/></svg><span class="s" id="sInst">Instrument</span><span class="m" id="mInst">The type of data.</span></div>
+    <div class="player">
+      <button class="play" id="aPlay" aria-label="Play"><svg viewBox="0 0 24 24" id="aPlayIcon"><path d="M7 4v16l13-8z"/></svg></button>
+      <div class="prog" aria-hidden="true"><i id="aProg"></i></div>
+      <div class="yr" id="aYear" aria-label="Year">–</div>
+    </div>
+    <p class="note">Mockup. Values are illustrative until the pipeline runs. Keys: 1 to 6 answer, Space plays, W asks "what was that?", V switches to visual.</p>
+  </aside>
+</section>
+
+<!-- VISUAL MODE -->
+<section id="visualView" hidden aria-label="Visual turntable">
+  <nav class="crate" id="crate" aria-label="Records"></nav>
+  <main class="deck" id="deck">
+    <div id="globe" aria-label="Globe. Use the arrow keys to move the needle." tabindex="0" role="application"></div>
+    <div class="title"><h1 id="vTitle">Ocean <em>fever</em></h1><p id="vSub">Higher pitch means warmer water. The middle note is the 1982 to 2011 average.</p></div>
+    <div class="deck-tools"><button class="chip" id="rotSlow" aria-label="Slower rotation" aria-keyshortcuts="-">− <kbd>-</kbd></button><button class="chip" id="rotPause" aria-pressed="false" aria-keyshortcuts="P">Pause rotation <kbd>P</kbd></button><button class="chip" id="rotFast" aria-label="Faster rotation" aria-keyshortcuts="=">+ <kbd>=</kbd></button><button class="chip" id="depthBtn" aria-pressed="false">Depth</button><button class="chip" id="tourBtn">Tour</button></div>
+    <svg id="arm" viewBox="0 0 300 420" aria-hidden="true">
+      <circle cx="250" cy="50" r="34" fill="#2a2018" stroke="#4a3a2c" stroke-width="2"/>
+      <circle cx="250" cy="50" r="12" style="fill:var(--accent)"/>
+      <path d="M250 50 L215 300 L150 372" stroke="#cdb89c" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="128" y="360" width="40" height="22" rx="4" transform="rotate(-38 148 371)" fill="#3a2c21" stroke="#cdb89c" stroke-width="2"/>
+    </svg>
+    <div class="tip" id="tip" aria-hidden="true"><span>Needle on</span><b id="tipPlace">Gulf of Guinea</b><span id="tipVal">29.4 °C · A4</span></div>
+    <p class="hint" id="hint">Drag to explore, or use <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd>. The sound follows the needle. Years <kbd>[</kbd> <kbd>]</kbd></p>
+  </main>
+  <aside class="notes" aria-label="Reading under the needle">
+    <div class="reading" aria-live="polite">
+      <h2 id="nPlace">Gulf of Guinea</h2>
+      <div class="co" id="nCo">2.1°N · 3.4°E</div>
+      <div class="big"><b id="nVal" class="accent">29.4</b><span id="nUnit">°C</span></div>
+      <span class="anom" id="nAnom">Drum: 1.1 °C above normal</span>
+    </div>
+    <div class="legend" id="legend" aria-hidden="true"></div>
+    <div class="legend-l"><span id="lMin"></span><span id="lMax"></span></div>
+    <h3>How you're hearing it</h3>
+    <div class="hrow"><svg viewBox="0 0 24 24"><path d="M4 18 L9 10 L14 14 L20 5"/></svg><span class="s">Value</span><span class="m">Pitch, C3 to C6</span></div>
+    <div class="hrow"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 3"/></svg><span class="s">Change</span><span class="m">Tempo, 60 to 140 bpm</span></div>
+    <div class="hrow"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 9l7-6 7 6"/></svg><span class="s">Anomaly</span><span class="m">Drum hit</span></div>
+    <div class="hrow"><svg viewBox="0 0 24 24"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg><span class="s">Longitude</span><span class="m">Left to right</span></div>
+    <h3>Liner notes</h3>
+    <p class="liner" id="liner"></p>
+    <p class="src" id="src"></p>
+    <button class="nasa" id="nasaBtn"><img id="nasaThumb" alt=""><span>See the original on NASA<small id="nasaSmall">Image and animation from SVS</small></span></button>
+  </aside>
+  <footer class="bar">
+    <div class="transport">
+      <button class="iconbtn" aria-label="Back five years" id="back5"><svg viewBox="0 0 24 24"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6"/></svg></button>
+      <button class="play" id="vPlay" aria-label="Play"><svg viewBox="0 0 24 24" id="vPlayIcon"><path d="M7 4v16l13-8z"/></svg></button>
+    </div>
+    <div class="tl" id="tl"><canvas id="wave" aria-label="Timeline. Drag to travel through the years." role="slider" aria-valuemin="1981" aria-valuemax="2025" aria-valuenow="2024" tabindex="0"></canvas>
+      <div class="years"><span>1981</span><span>1990</span><span>2000</span><span>2010</span><span>2020</span><span>2025</span></div></div>
+    <div class="yearbig"><b id="vYear">2024</b><span id="vYearSub">drag to travel</span></div>
+  </footer>
+</section>
+</div>
+
+<!-- NASA modal -->
+<div class="scrim" id="nasaModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <button class="iconbtn x" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="mTitle">Sea surface temperature</h2>
+    <p class="meta" id="mMeta"></p>
+    <figure><img id="mImg" alt=""><figcaption id="mCap"></figcaption></figure>
+    <div class="actions"><a class="btn pri" id="mLink" target="_blank" rel="noopener">Open on NASA SVS</a><button class="btn" id="mListen">Listen to this record</button></div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="scrim" id="setModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+    <button class="iconbtn x" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="sTitle">Settings</h2>
+    <div class="set">
+      <label>Speech speed <input type="range" id="rate" min="0.6" max="1.6" step="0.1" value="1"></label>
+      <label>Text size <input type="range" id="fsz" min="1" max="1.3" step="0.05" value="1"></label>
+      <label>Music volume while the guide talks <input type="range" id="duck" min="0" max="0.6" step="0.05" value="0.2"></label>
+      <label>Vibrate on drum hits <input type="checkbox" id="vib" checked></label>
+      <button class="btn" id="replayTour">Show the visual tour again</button>
+    </div>
+  </div>
+</div>
+
+<!-- Onboarding -->
+<div id="tour" hidden><div class="spot" id="spot"></div>
+  <div class="coach" id="coach" role="dialog" aria-live="polite" aria-labelledby="cT"><div class="n" id="cN"></div><h3 id="cT"></h3><p id="cP"></p>
+  <div class="row"><button class="skipt" id="cSkip">Skip the tour</button><button class="next" id="cNext">Next</button></div></div></div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+const $=s=>document.querySelector(s);
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* ---------- records ---------- */
+const SVS='https://svs.gsfc.nasa.gov/';
+const R=[
+ {k:'sst',topic:'Ocean',name:'Ocean fever',full:'Sea surface temperature',svs:5101,unit:'°C',min:-2,max:32,mode:0,inst:'Strings',wave:'triangle',ramp:['#1b1f5a','#2e8c9e','#f2b450','#e8503a'],img:'vis/a000000/a005100/a005101/sst_mur_print.jpg',liner:'Oceans hold more than 90% of the extra heat that we trap. In the tropics the melody climbs a little each decade, and the drums get busier after 2015.',src:'MUR sea surface temperature (GHRSST L4). Decoded from the frame colour bar.'},
+ {k:'ssta',topic:'Ocean',name:'Off the chart',full:'Sea surface temperature anomaly',svs:5176,unit:'°C vs normal',min:-3,max:3,mode:1,inst:'Strings, muted',wave:'triangle',ramp:['#2a5fb0','#cfd6dc','#f0a070','#c8302a'],img:'vis/a000000/a005100/a005176/sst_mur_anomaly_print.jpg',liner:'This record plays only the difference from normal. Silence means normal. Every drum is a hot day for the ocean.',src:'MUR SST anomaly. Diverging colour bar, decoded both ways from zero.'},
+ {k:'bio',topic:'Land',name:'Breathing planet',full:'Global biosphere',svs:5075,unit:'index',min:0,max:1,mode:2,inst:'Marimba',wave:'square',ramp:['#2b1d10','#8a7a2e','#5aa04a','#1f6b3a'],img:'vis/a000000/a005000/a005075/nrtbio_print.jpg',liner:'Plants on land and plankton in the sea. In spring the north fills with notes. In autumn they fall away.',src:'Near real-time global biosphere. Land NDVI and ocean chlorophyll.'},
+ {k:'fire',topic:'Land',name:'Burn season',full:'Active fires (VIIRS)',svs:5113,unit:'fires per cell',min:0,max:40,mode:4,inst:'Crackle and drum',wave:'sawtooth',ramp:['#140b07','#5a1e0e','#e8603c','#ffd27a'],img:'vis/a000000/a005100/a005113/fires_frp_VIIRS.892_print.jpg',liner:'Each fire pixel is a click. A dense rhythm means many fires. Listen to the African savanna in December and the Amazon in September.',src:'VIIRS active fire detections. Counted, so no colour decode is needed.'},
+ {k:'air',topic:'Air',name:'Air over you',full:'Near-surface air temperature',svs:5147,unit:'°C',min:-40,max:45,mode:0,inst:'Flute',wave:'sine',ramp:['#3a2a7a','#3d9fc4','#f4d36a','#d2453a'],img:'vis/a000000/a005100/a005147/MC01_stage3_GMAO_near_surface_temperature_2048x1024_en.00001_print.jpg',liner:'The temperature of the air where people live. This is the record for the Lagos and Vaasa duet.',src:'GEOS-FP model, NASA GMAO. Decoded from the colour bar.'},
+ {k:'wind',topic:'Air',name:'Restless air',full:'Near-surface wind speed',svs:5148,unit:'m/s',min:0,max:25,mode:3,inst:'Breath noise',wave:'sine',ramp:['#0f1c2a','#2f6f8f','#9fd8e0','#ffffff'],img:'vis/a000000/a005100/a005148/MC02_stage3_GMAO_near_surface_wind_2048x1024_en.00001_print.jpg',liner:'Wind is a texture, not a note. Faster wind is a louder, brighter rush.',src:'GEOS-FP model, NASA GMAO.'},
+ {k:'rain',topic:'Air',name:'Rain dance',full:'Precipitation and clouds',svs:5149,unit:'mm/h',min:0,max:20,mode:3,inst:'Rain sticks',wave:'triangle',ramp:['#0d1520','#3c5e7a','#6fd0c0','#e8f4a0'],img:'vis/a000000/a005100/a005149/MC03_stage3_GMAO_precipitation_2048x1024_en.00001_print.jpg',liner:'Rain is rhythm. Heavy rain plays fast, light drops.',src:'GEOS-FP model, NASA GMAO.'},
+ {k:'pm',topic:'Air',name:'Dust in the light',full:'Particulate matter (PM2.5)',svs:5151,unit:'µg/m³',min:0,max:150,mode:3,inst:'Low drone',wave:'sawtooth',ramp:['#1a1410','#6b4a2a','#d08a3a','#f4e0b0'],img:'vis/a000000/a005100/a005151/MC01_stage4_GMAO_pm25_2048x1024_en.00001_print.jpg',liner:'Small particles in the air we breathe. The drone gets rougher as the air gets dirtier.',src:'GEOS-CF model, NASA GMAO.'},
+ {k:'o3',topic:'Air',name:'Ozone hum',full:'Near-surface ozone',svs:5152,unit:'ppb',min:0,max:80,mode:3,inst:'Organ',wave:'sine',ramp:['#141a2a','#3b4f9a','#9a7ad0','#f0c0f0'],img:'vis/a000000/a005100/a005152/MC02_stage4_GMAO_O3_2048x1024_en.00001_print.jpg',liner:'Ozone near the ground. It is harmful to breathe, unlike the ozone layer high above.',src:'GEOS-CF model, NASA GMAO.'},
+ {k:'co',topic:'Air',name:'Smoke signal',full:'Carbon monoxide',svs:5153,unit:'ppb',min:50,max:400,mode:3,inst:'Low brass',wave:'sawtooth',ramp:['#120d0a','#5a3a1a','#c87a2a','#ffe08a'],img:'vis/a000000/a005100/a005153/MC03_stage4_GMAO_CO_2048x1024_en.00001_print.jpg',liner:'Carbon monoxide comes from fires and traffic. Listen for it travelling away from the fire record.',src:'GEOS-CF model, NASA GMAO.'},
+ {k:'no',topic:'Air',name:'City breath',full:'Nitrogen oxides',svs:5154,unit:'ppb',min:0,max:40,mode:3,inst:'Synth pulse',wave:'square',ramp:['#0e0f14','#3a3550','#a06ac0','#ffc0e0'],img:'vis/a000000/a005100/a005154/MC04_stage4_GMAO_NO2_2048x1024_en.00001_print.jpg',liner:'Nitrogen oxides come mostly from engines. Cities play as bright pulses.',src:'GEOS-CF model, NASA GMAO.'},
+ {k:'ice',topic:'Ice',name:'The long melt',full:'Polar sea ice',svs:5099,unit:'% ice cover',min:0,max:100,mode:5,inst:'Glass bells',wave:'sine',ramp:['#0b1a2e','#2e5d7a','#bfe3f2','#ffffff'],img:'vis/a000000/a005000/a005099/polar_sea_ice_sxs_w_date.2023172_print.jpg',liner:'Each year the Arctic ice cap is smaller in September. The bells thin out as the ice goes.',src:'Daily polar sea ice. The pipeline counts ice pixels for the extent.'},
+ {k:'spiral',topic:'Climate',name:'Earth\'s single',full:'Climate spiral 1880 to 2022',svs:5057,unit:'°C vs 1951 to 1980',min:-1,max:1.5,mode:1,inst:'Piano',wave:'triangle',ramp:['#2a5fb0','#cfd6dc','#f0a070','#c8302a'],img:'vis/a000000/a005000/a005057/GISTEMP_Spiral_60sec_C.01400_print.jpg',liner:'142 years of global temperature in one minute. It starts low and calm, and it ends high and fast.',src:'NASA GISTEMP. Bonus track.'},
+ {k:'gedi',topic:'Extended',ext:1,name:'Tall trees',full:'Forest height (GEDI)',svs:null,unit:'m',min:0,max:50,mode:2,inst:'Cello',wave:'triangle',ramp:['#1a140c','#4a5a2a','#3f8f4a','#bfe8a0'],img:'',page:'https://gedi.umd.edu/',liner:'Forest height from the GEDI laser on the space station. On the globe it becomes real depth.',src:'Extended record. Not an EIC visualization.'},
+ {k:'snow',topic:'Extended',ext:1,name:'Snowfall',full:'Snow cover (MODIS)',svs:null,unit:'% snow',min:0,max:100,mode:5,inst:'Celesta',wave:'sine',ramp:['#141a24','#5b6f86','#d6e4f0','#ffffff'],img:'',page:'https://nasa-gibs.github.io/gibs-api-docs/',liner:'Snow over land through the year, from MODIS through NASA GIBS.',src:'Extended record. Not an EIC visualization.'},
+];
+let rec=R[0];
+const PLACES={lagos:{n:'Lagos',lat:6.45,lon:3.39},vaasa:{n:'Vaasa',lat:63.1,lon:21.6},london:{n:'London',lat:51.5,lon:-0.1},'new york':{n:'New York',lat:40.7,lon:-74},tokyo:{n:'Tokyo',lat:35.7,lon:139.7},nairobi:{n:'Nairobi',lat:-1.3,lon:36.8},sydney:{n:'Sydney',lat:-33.9,lon:151.2},mumbai:{n:'Mumbai',lat:19.1,lon:72.9},reykjavik:{n:'Reykjavik',lat:64.1,lon:-21.9},'rio':{n:'Rio de Janeiro',lat:-22.9,lon:-43.2},helsinki:{n:'Helsinki',lat:60.2,lon:24.9},accra:{n:'Accra',lat:5.6,lon:-0.2}};
+
+/* ---------- shared value model (mirrors the shader) ---------- */
+const nz=(u,v,t)=>0.5+0.25*Math.sin(u*12+t*0.3)*Math.sin(v*9)+0.25*Math.sin(u*5-v*7+1.3);
+let landCtx=null;
+const landImg=new Image();landImg.crossOrigin='anonymous';landImg.src='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-water.png';
+landImg.onload=()=>{const c=document.createElement('canvas');c.width=512;c.height=256;landCtx=c.getContext('2d',{willReadFrequently:true});landCtx.drawImage(landImg,0,0,512,256);};
+function isLand(u,v){if(!landCtx)return false;const x=Math.min(511,Math.max(0,Math.floor(u*512))),y=Math.min(255,Math.max(0,Math.floor((1-v)*256)));return landCtx.getImageData(x,y,1,1).data[0]<100;}
+function v01(mode,u,v,yearT){const a=Math.abs(v-.5)*2,n=nz(u,v,0),cl=x=>Math.min(1,Math.max(0,x));const land=isLand(u,v);
+  switch(mode){case 0:return cl(1-Math.pow(a,.75)+.12*(n-.5)+.05*yearT);
+    case 1:return cl(.55+.5*(n-.5)+.12*yearT);
+    case 2:return land?cl(.2+.75*(1-a)*n):.08;
+    case 3:return cl(.15+.85*n*n);
+    case 4:return land&&n>.74?cl((n-.74)*4):0;
+    case 5:return cl((a-.62-.06*yearT)/.2);}return .5;}
+const toVal=(r,x)=>r.min+(r.max-r.min)*x;
+const fmt=(r,x)=>{const v=toVal(r,x);return (Math.abs(r.max-r.min)<10?v.toFixed(1):Math.round(v))+''};
+const latlon2uv=(lat,lon)=>[(lon+180)/360,(lat+90)/180];
+
+/* ---------- colour + contrast ---------- */
+const hex2rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)/255);
+function rampRGB(ramp,x){const s=ramp.map(hex2rgb);const p=Math.min(2.999,Math.max(0,x*3)),i=Math.floor(p),f=p-i;return s[i].map((c,j)=>c+(s[i+1][j]-c)*f);}
+const lum=c=>{const l=c.map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*l[0]+.7152*l[1]+.0722*l[2];};
+const contrast=(a,b)=>{const A=lum(a),B=lum(b);return (Math.max(A,B)+.05)/(Math.min(A,B)+.05);};
+function rgb2hsl([r,g,b]){const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0,l=(mx+mn)/2;if(mx!==mn){const d=mx-mn;s=l>.5?d/(2-mx-mn):d/(mx+mn);h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}return [h,s,l];}
+function hsl2rgb([h,s,l]){if(!s)return [l,l,l];const q=l<.5?l*(1+s):l+s-l*s,p=2*l-q;const f=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};return [f(h+1/3),f(h),f(h-1/3)];}
+const BG=hex2rgb('#120d0a');
+function setAccent(rgb){let hsl=rgb2hsl(rgb);hsl[1]=Math.max(hsl[1],.45);let c=hsl2rgb(hsl),guard=0;
+  while(contrast(c,BG)<4.5&&guard++<40){hsl[2]=Math.min(.95,hsl[2]+.025);c=hsl2rgb(hsl);}
+  const css='#'+c.map(v=>Math.round(v*255).toString(16).padStart(2,'0')).join('');
+  const on=contrast(c,BG)>=contrast(c,[1,1,1])?'#120d0a':'#ffffff';
+  document.documentElement.style.setProperty('--accent',css);document.documentElement.style.setProperty('--on-accent',on);}
+
+/* ---------- audio engine ---------- */
+let AC,master,music,settings={rate:1,duck:.2,vib:true};
+function initAudio(){if(AC)return;AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.9;master.connect(AC.destination);music=AC.createGain();music.gain.value=1;music.connect(master);}
+const SEMI=[0,2,4,7,9],NAMES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteOf(x){const i=Math.round(Math.min(1,Math.max(0,x))*14),m=48+12*Math.floor(i/5)+SEMI[i%5];return {m,f:440*Math.pow(2,(m-69)/12),name:NAMES[m%12]+(Math.floor(m/12)-1)};}
+function tone(f,dur=.4,wave='triangle',pan=0,vol=.18){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),p=AC.createStereoPanner(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=wave==='sine'?6000:2400;
+  o.type=wave;o.frequency.value=f;p.pan.value=pan;const t=AC.currentTime;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.02);g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(lp).connect(g).connect(p).connect(music);o.start(t);o.stop(t+dur+.05);}
+function drum(pan=0){if(!AC)return;const o=AC.createOscillator(),g=AC.createGain(),p=AC.createStereoPanner();const t=AC.currentTime;o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(42,t+.18);g.gain.setValueAtTime(.35,t);g.gain.exponentialRampToValueAtTime(.001,t+.25);p.pan.value=pan;o.connect(g).connect(p).connect(music);o.start(t);o.stop(t+.3);
+  if(settings.vib&&navigator.vibrate)navigator.vibrate(40);}
+const duck=on=>{if(music)music.gain.setTargetAtTime(on?settings.duck:1,AC.currentTime,.08);};
+
+/* ---------- speech ---------- */
+const synth=window.speechSynthesis;let voice=null;
+function pickVoice(){const vs=synth?synth.getVoices():[];voice=vs.find(v=>/en-GB/.test(v.lang)&&/female|Serena|Kate|Martha|Google UK/i.test(v.name))||vs.find(v=>/^en/.test(v.lang))||null;}
+if(synth){pickVoice();synth.onvoiceschanged=pickVoice;}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let speaking=false,orbLevel=0;
+function bubble(text,who='g',snd){const d=document.createElement('div');d.className='msg '+who;d.innerHTML=(who==='g'?'<div class="who">Guide</div>':'')+text+(snd?`<div><span class="snd">♪ ${snd}</span></div>`:'');$('#convo').appendChild(d);$('#convo').scrollTop=1e6;}
+function say(text,snd){bubble(text,'g',snd);$('#status').textContent='The guide is speaking';
+  return new Promise(res=>{speaking=true;duck(true);const done=()=>{speaking=false;duck(false);$('#status').textContent='Your turn, or listen';res();};
+    if(!synth){setTimeout(done,Math.min(6000,text.length*55));return;}
+    const u=new SpeechSynthesisUtterance(text.replace(/°C/g,' degrees').replace(/ · /g,', '));if(voice)u.voice=voice;u.rate=settings.rate;u.onend=done;u.onerror=done;synth.cancel();synth.speak(u);
+    setTimeout(()=>{if(speaking)done();},Math.max(4000,text.length*120/settings.rate));});}
+function options(list){const box=$('#options');box.innerHTML='';list.forEach((o,i)=>{const b=document.createElement('button');b.className='opt';b.innerHTML=`<kbd>${i+1}</kbd>${o.label}`;b.onclick=()=>pick(o);box.appendChild(b);});current=list;}
+let current=[];
+function pick(o){bubble(o.label,'u');$('#options').innerHTML='';o.go();}
+
+/* ---------- the guide flow ---------- */
+let place=PLACES.lagos,place2=null,playing=false,stepI=0,series=[],abortTrack=false,yearNow=2024;
+const YEARS=Array.from({length:45},(_,i)=>1981+i);
+function buildSeries(r,p){const [u,v]=latlon2uv(p.lat,p.lon);const base=v01(r.mode,u,v,0);const rnd=(i)=>Math.sin(i*12.9898+p.lat)*43758.5453%1;
+  return YEARS.map((y,i)=>{const tr=(i/44)*(r.mode===5?-.35:.18);const x=Math.min(1,Math.max(0,base+tr+.05*Math.sin(i*1.7)+.03*rnd(i)));return x;});}
+const TOPICS=[{label:'Ocean temperature',r:'sst'},{label:'Arctic ice',r:'ice'},{label:'The air over a city',r:'air'},{label:'Plants and land',r:'bio'},{label:'Fires',r:'fire'},{label:'Surprise me',r:null}];
+async function welcome(){await say("Hi. I turn NASA's pictures of Earth into sound. Every note comes from real satellite data. What do you want to hear?");
+  options(TOPICS.map(t=>({label:t.label,go:()=>chooseTopic(t.r||R[Math.floor(Math.random()*12)].k)})));}
+async function chooseTopic(k){setRecord(R.find(r=>r.k===k));
+  await say(`${rec.full}. Do you want the whole planet, or one place? You can say a city.`);
+  options([{label:'Lagos',go:()=>choosePlace(PLACES.lagos)},{label:'Vaasa',go:()=>choosePlace(PLACES.vaasa)},{label:'Lagos and Vaasa duet',go:()=>duet()},{label:'The whole planet',go:()=>choosePlace({n:'the whole planet',lat:0,lon:0})}]);}
+async function choosePlace(p){place=p;place2=null;series=buildSeries(rec,p);updateHear(0,true);
+  await key();}
+async function key(){const b=series.length?series.slice(0,10).reduce((a,c)=>a+c,0)/10:.5;const mid=noteOf(b),hi=noteOf(Math.min(1,b+.14));
+  await say(`Before the music, here is your key. This note is normal for ${place.n}.`,`${mid.name} · ${Math.round(mid.f)} Hz`);tone(mid.f,1.1,rec.wave);await sleep(1200);
+  await say(`This higher note means more. For this record, about ${(0.14*(rec.max-rec.min)).toFixed(1)} ${rec.unit} more.`,`${hi.name} · ${Math.round(hi.f)} Hz`);tone(hi.f,1.1,rec.wave);await sleep(1200);
+  await say('A soft drum means higher than normal for that date.','drum');drum();await sleep(700);
+  await say(`The instrument is ${rec.inst.toLowerCase()}. Ready?`);
+  options([{label:'Go',go:()=>playTrack()},{label:'Play the key again',go:()=>key()},{label:'Slower speech',go:()=>{settings.rate=Math.max(.6,settings.rate-.2);$('#rate').value=settings.rate;key();}}]);}
+function updateHear(i,quiet){const x=series[i]??.5,prev=series[i-1]??x,n=noteOf(x),y=YEARS[i]||2024;yearNow=y;
+  const anom=x-series.slice(0,Math.max(1,i)).reduce((a,b)=>a+b,0)/Math.max(1,i)>.06;
+  $('#hPlace').textContent=place2?`${place.n} and ${place2.n}`:place.n;$('#hRecord').textContent=rec.full;
+  $('#hVal').textContent=fmt(rec,x);$('#hUnit').textContent=rec.unit;
+  $('#sNote').textContent=`${n.name} · ${Math.round(n.f)} Hz`;$('#mNote').textContent=`${fmt(rec,x)} ${rec.unit} in ${y}.`;
+  $('#sDrum').textContent=anom?'Drum hit':'No drum';$('#mDrum').textContent=anom?'Higher than normal for this date.':'Close to normal.';
+  const bpm=Math.round(80+Math.min(60,Math.abs(x-prev)*900));$('#sTempo').textContent=`${bpm} bpm`;$('#mTempo').textContent=bpm>100?'Fast change this year.':'Slow, steady change.';
+  const pan=Math.max(-1,Math.min(1,place.lon/90));$('#sPan').textContent=place2?'Both ears':pan<-.15?'Left':pan>.15?'Right':'Centre';$('#mPan').textContent=place2?`${place.n} left, ${place2.n} right.`:pan>.15?'East of Greenwich.':pan<-.15?'West of Greenwich.':'Near Greenwich.';
+  $('#sInst').textContent=rec.inst;$('#mInst').textContent=rec.full+'.';
+  $('#aYear').textContent=y;$('#aProg').style.width=(i/44*100)+'%';
+  setAccent(rampRGB(rec.ramp,x));
+  if(!quiet){['#rNote',anom&&'#rDrum'].filter(Boolean).forEach(s=>{const e=$(s);e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash');});}
+  return {x,n,anom,bpm,pan,y};}
+async function playTrack(fromI=0){initAudio();playing=true;abortTrack=false;setPlayIcons();
+  const moments={14:'',35:''};
+  for(stepI=fromI;stepI<YEARS.length;stepI++){if(abortTrack)break;const h=updateHear(stepI);tone(h.n.f,.5,rec.wave,h.pan);
+    if(place2){const x2=series2[stepI],n2=noteOf(x2);tone(n2.f,.5,rec.wave,1);}
+    if(h.anom)drum(h.pan);
+    if(stepI===14||stepI===35){await say(stepI===14?`That's ${h.y}. ${fmt(rec,h.x)} ${rec.unit}. The note is ${h.n.name}.`:`${h.y}. Hear the drums? Most years now are above normal here.`);}
+    await sleep(60000/h.bpm*0.85);}
+  playing=false;setPlayIcons();if(abortTrack)return;
+  await say(place2?`That was ${place.n} and ${place2.n}. The gap between the notes is the gap between the two cities.`:`That was ${YEARS[0]} to ${YEARS[44]} in ${place.n}. What next?`);
+  options([{label:'Duet with Vaasa',go:()=>duet()},{label:'Another place',go:()=>chooseTopic(rec.k)},{label:'Another topic',go:()=>welcome()},{label:'Show me the globe',go:()=>setMode('visual')}]);}
+let series2=[];
+async function duet(){setRecord(R.find(r=>r.k==='air'));place=PLACES.lagos;place2=PLACES.vaasa;series=buildSeries(rec,place);series2=buildSeries(rec,place2);updateHear(0,true);
+  await say('The duet. Lagos plays in your left ear. Vaasa plays in your right ear. Same record, near-surface air temperature.');
+  const a=noteOf(series[0]),b=noteOf(series2[0]);tone(a.f,1,rec.wave,-1);await sleep(900);tone(b.f,1,rec.wave,1);await sleep(1100);
+  await say(`Lagos is ${a.name}. Vaasa is ${b.name}. The gap between the notes is the gap in temperature. Listen for the two notes moving together.`,`${a.name} left · ${b.name} right`);
+  options([{label:'Play the duet',go:()=>playTrack()},{label:'Explain it again',go:()=>duet()}]);}
+async function whatWasThat(){if(!series.length)return say('Nothing is playing yet. Choose a topic first.');abortTrack=true;await sleep(150);const h=updateHear(Math.max(0,stepI-1),true);
+  await say(`That was ${h.y} in ${place.n}. The note was ${h.n.name}, ${Math.round(h.n.f)} hertz. That means ${fmt(rec,h.x)} ${rec.unit}. ${h.anom?'The drum means it was higher than normal for that date.':'No drum, so it was close to normal.'}`);
+  options([{label:'Continue',go:()=>playTrack(stepI)},{label:'Start again',go:()=>playTrack(0)}]);}
+function setPlayIcons(){const p=playing?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4v16l13-8z"/>';$('#aPlayIcon').innerHTML=p;$('#vPlayIcon').innerHTML=p;$('#aPlay').setAttribute('aria-label',playing?'Pause':'Play');$('#vPlay').setAttribute('aria-label',playing?'Pause':'Play');}
+$('#aPlay').onclick=()=>{initAudio();if(playing){abortTrack=true;playing=false;setPlayIcons();}else{if(!series.length)series=buildSeries(rec,place);playTrack(stepI>=44?0:stepI);}};
+
+/* typed + voice input */
+function handle(text){const t=text.toLowerCase().trim();if(!t)return;
+  const byIndex=parseInt(t,10);if(byIndex&&current[byIndex-1]){pick(current[byIndex-1]);return;}
+  const hit=current.find(o=>t.includes(o.label.toLowerCase())||o.label.toLowerCase().includes(t));if(hit){pick(hit);return;}
+  if(/what was that|what's that|explain/.test(t)){bubble(text,'u');whatWasThat();return;}
+  if(/visual|globe|show/.test(t)){bubble(text,'u');setMode('visual');return;}
+  const p=Object.keys(PLACES).find(k=>t.includes(k));if(p){bubble(text,'u');$('#options').innerHTML='';choosePlace(PLACES[p]);return;}
+  const tp=TOPICS.find(x=>x.r&&(t.includes(x.label.toLowerCase().split(' ')[0])||t.includes(x.r)));if(tp){bubble(text,'u');chooseTopic(tp.r);return;}
+  bubble(text,'u');say("I don't know that one yet. Try a topic like ocean or ice, or a big city like Lagos.");}
+$('#sayForm').onsubmit=e=>{e.preventDefault();handle($('#sayInput').value);$('#sayInput').value='';};
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+$('#mic').onclick=()=>{if(!SR){say('Voice input does not work in this browser. Type your answer, or press a number key.');return;}
+  const r=new SR();r.lang='en-GB';$('#mic').classList.add('live');$('#status').textContent='Listening';r.onresult=e=>handle(e.results[0][0].transcript);r.onend=()=>{$('#mic').classList.remove('live');$('#status').textContent='Your turn, or listen';};r.start();};
+
+/* orb */
+const orb=$('#orb'),og=orb.getContext('2d');orb.width=orb.height=192;
+function drawOrb(t){og.clearRect(0,0,192,192);const target=speaking?.9:playing?.6:.15;orbLevel+=(target-orbLevel)*.08;
+  const acc=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+  for(let k=3;k>=0;k--){og.beginPath();for(let a=0;a<=Math.PI*2+.01;a+=.08){const r=46+k*8+orbLevel*(6+k*3)*Math.sin(a*(3+k)+t*(2+k*.6))*Math.sin(t*1.3+k);og.lineTo(96+Math.cos(a)*r,96+Math.sin(a)*r);}
+    og.strokeStyle=acc;og.globalAlpha=k===0?1:.18+.1*(3-k);og.lineWidth=k===0?3:1.5;og.stroke();}
+  og.globalAlpha=1;og.beginPath();og.arc(96,96,30+orbLevel*6,0,7);og.fillStyle=acc;og.globalAlpha=.9;og.fill();og.globalAlpha=1;}
+
+/* ---------- mode switch ---------- */
+function setMode(m){document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-checked',b.dataset.mode===m));
+  $('#audioView').hidden=m!=='audio';$('#visualView').hidden=m!=='visual';
+  if(m==='visual'){initGlobe();sizeGlobe();setRecord(rec);if(!store.get('jb_tour'))setTimeout(startTour,600);}
+  if(m==='audio'&&!$('#convo').children.length&&$('#gate').hidden){initAudio();welcome();}
+  document.title=m==='audio'?'Earth Jukebox · audio':'Earth Jukebox · visual';}
+document.querySelectorAll('.seg button').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+
+/* ---------- crate ---------- */
+const crate=$('#crate');let lastTopic='';
+R.forEach(r=>{if(r.topic!==lastTopic){const h=document.createElement('h2');h.textContent=r.topic==='Extended'?'Extended NASA data':r.topic;crate.appendChild(h);lastTopic=r.topic;}
+  const b=document.createElement('button');b.className='sleeve';b.draggable=true;b.dataset.k=r.k;b.setAttribute('aria-pressed',r===rec);
+  b.innerHTML=`<span class="cover" style="background:linear-gradient(135deg,${r.ramp[0]},${r.ramp[1]} 45%,${r.ramp[2]} 75%,${r.ramp[3]})"></span><span><b>${r.name}${r.ext?'<span class="ext">extended</span>':''}</b><small>${r.full}</small></span>`;
+  b.onclick=()=>{setRecord(r);dropFx();};b.ondragstart=e=>{e.dataTransfer.setData('text/plain',r.k);};crate.appendChild(b);});
+const deck=$('#deck');
+deck.addEventListener('dragover',e=>{e.preventDefault();deck.classList.add('drop');});
+deck.addEventListener('dragleave',()=>deck.classList.remove('drop'));
+deck.addEventListener('drop',e=>{e.preventDefault();deck.classList.remove('drop');const r=R.find(x=>x.k===e.dataTransfer.getData('text/plain'));if(r){setRecord(r);dropFx();if(tourStep===0)tourNext();}});
+
+function setRecord(r){rec=r;document.querySelectorAll('.sleeve').forEach(s=>s.setAttribute('aria-pressed',s.dataset.k===r.k));
+  const w=r.name.split(' ');$('#vTitle').innerHTML=`${w.slice(0,-1).join(' ')} <em>${w.slice(-1)}</em>`;
+  $('#vSub').textContent=`${r.full}. Higher pitch means a higher value. Instrument: ${r.inst.toLowerCase()}.`;
+  $('#liner').textContent=r.liner;$('#src').textContent=r.src+(r.svs?` SVS ${r.svs}.`:'');
+  $('#legend').style.background=`linear-gradient(90deg,${r.ramp.join(',')})`;$('#lMin').textContent=r.min+' '+r.unit;$('#lMax').textContent=r.max+' '+r.unit;
+  $('#nasaThumb').src=r.img?SVS+r.img:'';$('#nasaThumb').style.visibility=r.img?'visible':'hidden';
+  $('#nasaSmall').textContent=r.svs?`SVS ${r.svs} · image and animation`:'External NASA source';
+  if(globeMat){globeMat.uniforms.mode.value=r.mode;r.ramp.forEach((c,i)=>globeMat.uniforms['c'+i].value.set(c));}
+  readNeedle();}
+
+/* ---------- globe ---------- */
+let renderer,scene,cam,globe,globeMat,marker,platter,halo,raycaster=new THREE.Raycaster(),needleUV=[.508,.512],depthOn=false,depthCur=0;
+const GLSL_NZ=`float nz(float u,float v,float t){return 0.5+0.25*sin(u*12.0+t*0.3)*sin(v*9.0)+0.25*sin(u*5.0-v*7.0+1.3);}
+float val(int mode,vec2 uv,float land,float yt){float a=abs(uv.y-0.5)*2.0;float n=nz(uv.x,uv.y,0.0);
+ if(mode==0)return clamp(1.0-pow(a,0.75)+0.12*(n-0.5)+0.05*yt,0.,1.);
+ if(mode==1)return clamp(0.55+0.5*(n-0.5)+0.12*yt,0.,1.);
+ if(mode==2)return land>0.5?clamp(0.2+0.75*(1.0-a)*n,0.,1.):0.08;
+ if(mode==3)return clamp(0.15+0.85*n*n,0.,1.);
+ if(mode==4)return (land>0.5&&n>0.74)?clamp((n-0.74)*4.0,0.,1.):0.0;
+ return clamp((a-0.62-0.06*yt)/0.2,0.,1.);}`;
+function initGlobe(){if(renderer)return;const host=$('#globe');
+  renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});renderer.setPixelRatio(Math.min(devicePixelRatio,2));host.appendChild(renderer.domElement);
+  scene=new THREE.Scene();cam=new THREE.PerspectiveCamera(32,1,.1,100);
+  platter=new THREE.Group();platter.position.y=-1.55;scene.add(platter);
+  const vc=document.createElement('canvas');vc.width=vc.height=1024;const g=vc.getContext('2d');g.fillStyle='#0d0907';g.fillRect(0,0,1024,1024);
+  for(let i=0;i<220;i++){g.beginPath();g.arc(512,512,180+i*1.5,0,7);g.strokeStyle=`rgba(255,220,180,${.03+Math.random()*.05})`;g.stroke();}
+  platter.add(new THREE.Mesh(new THREE.CylinderGeometry(3.6,3.6,.08,128),[new THREE.MeshStandardMaterial({color:0x1a1210}),new THREE.MeshStandardMaterial({map:new THREE.CanvasTexture(vc),roughness:.35,metalness:.3}),new THREE.MeshStandardMaterial({color:0x1a1210})]));
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(3.85,3.95,.25,128),new THREE.MeshStandardMaterial({color:0x2a2018,roughness:.6,metalness:.4}));base.position.y=-.17;platter.add(base);
+  const L=new THREE.TextureLoader();const topo=L.load('https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-topology.png');const wat=L.load('https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-water.png');
+  globeMat=new THREE.ShaderMaterial({uniforms:{t:{value:0},topo:{value:topo},wat:{value:wat},mode:{value:rec.mode},depth:{value:0},yt:{value:.8},needle:{value:new THREE.Vector2(...needleUV)},
+      c0:{value:new THREE.Color()},c1:{value:new THREE.Color()},c2:{value:new THREE.Color()},c3:{value:new THREE.Color()}},
+    vertexShader:`uniform sampler2D topo;uniform sampler2D wat;uniform int mode;uniform float depth;uniform float yt;varying vec2 vUv;varying vec3 vN;varying float vLand;${GLSL_NZ}
+      void main(){vUv=uv;float land=1.0-step(0.4,texture2D(wat,uv).r);vLand=land;float h=val(mode,uv,land,yt);
+      vec3 p=position*(1.0+depth*(0.10*h+0.03*texture2D(topo,uv).r));vN=normalize(normalMatrix*normal);gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`,
+    fragmentShader:`uniform sampler2D topo;uniform sampler2D wat;uniform int mode;uniform float yt;uniform float t;uniform vec2 needle;uniform vec3 c0,c1,c2,c3;varying vec2 vUv;varying vec3 vN;${GLSL_NZ}
+      vec3 ramp(float x){float p=clamp(x,0.,.999)*3.0;if(p<1.0)return mix(c0,c1,p);if(p<2.0)return mix(c1,c2,p-1.0);return mix(c2,c3,p-2.0);}
+      void main(){float vLand=1.0-smoothstep(0.35,0.6,texture2D(wat,vUv).r);float h=val(mode,vUv,vLand,yt);vec3 col=ramp(h);
+        if(mode==0||mode==1)col=mix(col,vec3(.10,.08,.07),vLand);
+        if(mode==4&&h<0.01)col=vLand>0.5?vec3(.13,.09,.07):vec3(.05,.04,.04);
+        float d=distance(vUv*vec2(2.0,1.0),needle*vec2(2.0,1.0));col=mix(col,vec3(1.0),smoothstep(0.012,0.006,abs(d-0.03))*0.9);
+        float f=pow(1.0-max(dot(vN,vec3(0,0,1)),0.),2.5);col+=ramp(0.9)*f*0.35;gl_FragColor=vec4(col,1.);}`});
+  globe=new THREE.Mesh(new THREE.SphereGeometry(1.75,innerWidth<768?96:160,innerWidth<768?96:160),globeMat);globe.position.y=.45;scene.add(globe);
+  halo=new THREE.Mesh(new THREE.TorusGeometry(2.25,.012,8,200),new THREE.MeshBasicMaterial({color:0xf2a541,transparent:true,opacity:.45}));halo.rotation.x=Math.PI/2;halo.position.y=.45;scene.add(halo);
+  scene.add(new THREE.AmbientLight(0xffe2c4,.5));const key=new THREE.SpotLight(0xffc98a,60,30,.6,.5);key.position.set(-3,8,4);scene.add(key);
+  rec.ramp.forEach((c,i)=>globeMat.uniforms['c'+i].value.set(c));
+  addEventListener('resize',sizeGlobe);
+  const el=renderer.domElement;
+  const hitUV=e=>{const r=el.getBoundingClientRect();const p=new THREE.Vector2(((e.clientX-r.left)/r.width)*2-1,-((e.clientY-r.top)/r.height)*2+1);raycaster.setFromCamera(p,cam);const h=raycaster.intersectObject(globe)[0];return h?[h.uv.x,h.uv.y]:null;};
+  let lastX=0,lastY=0;el.style.cursor='grab';
+  el.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;el.setPointerCapture(e.pointerId);el.style.cursor='grabbing';initAudio();});
+  el.addEventListener('pointermove',e=>{if(!dragging)return;rotY+=(e.clientX-lastX)*.008;vTarget=Math.min(.9,Math.max(.1,vTarget+(e.clientY-lastY)*.0018));lastX=e.clientX;lastY=e.clientY;});
+  el.addEventListener('pointerup',()=>{if(dragging&&tourStep===1)tourNext();dragging=false;el.style.cursor='grab';});
+  $('#globe').addEventListener('keydown',e=>{const k=e.key;if(k==='ArrowLeft'||k==='ArrowRight'){e.preventDefault();rotY+=(k==='ArrowLeft'?.08:-.08);keyNudge=performance.now();}if(k==='ArrowUp'||k==='ArrowDown'){e.preventDefault();vTarget=Math.min(.9,Math.max(.1,vTarget+(k==='ArrowUp'?.02:-.02)));keyNudge=performance.now();}});
+  requestAnimationFrame(loop);}
+function sizeGlobe(){if(!renderer)return;const host=$('#globe'),w=host.clientWidth,h=host.clientHeight;if(!w||!h)return;renderer.setSize(w,h);cam.aspect=w/h;const port=w/h<1;
+  cam.position.set(0,port?5.2:3.4,port?10.6/Math.max(w/h,.55)*.92:10.6);cam.lookAt(0,port?.15:-.05,0);cam.updateProjectionMatrix();}
+let dragging=false,rotY=null,vTarget=.5,tiltX=0,autoRot=true,rotSpeed=.10,lastSound=0,lastRead=0,lastT=0,keyNudge=0;
+const reduceM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function loop(now){const t=now/1000,dt=Math.min(.1,t-lastT);lastT=t;if(!$('#visualView').hidden){
+  depthCur+=((depthOn?1:0)-depthCur)*.06;globeMat.uniforms.depth.value=depthCur;globeMat.uniforms.t.value=t;
+  if(rotY===null){rotY=Math.PI/2-needleUV[0]*Math.PI*2;vTarget=needleUV[1];}
+  if(!dragging&&autoRot&&!reduceM)rotY+=rotSpeed*dt;
+  const u=((((Math.PI/2-rotY)/(Math.PI*2))%1)+1)%1;tiltX+=((vTarget-.5)*Math.PI*.9-tiltX)*.12;
+  globe.rotation.y=rotY;globe.rotation.x=tiltX;
+  if(Math.abs(u-needleUV[0])>.001||Math.abs(vTarget-needleUV[1])>.001){needleUV=[u,vTarget];globeMat.uniforms.needle.value.set(u,vTarget);
+    const active=dragging||now-keyNudge<300;const snd=active&&now-lastSound>140;if(snd)lastSound=now;if(snd||now-lastRead>150){lastRead=now;readNeedle(snd);}}
+  platter.rotation.y=t*(playing?.6:.15);
+  renderer.render(scene,cam);placeTip();drawWave(t);}
+  drawOrb(t);requestAnimationFrame(loop);}
+requestAnimationFrame(t=>{drawOrb(t/1000);if(!renderer)requestAnimationFrame(function a(tt){if(renderer)return;drawOrb(tt/1000);requestAnimationFrame(a);});});
+function placeTip(){const v=new THREE.Vector3();const [u,vv]=needleUV;const phi=(1-vv)*Math.PI,th=u*Math.PI*2;
+  v.set(-Math.cos(th)*Math.sin(phi),Math.cos(phi),Math.sin(th)*Math.sin(phi)).multiplyScalar(1.75);globe.localToWorld(v);v.project(cam);
+  const host=$('#globe');$('#tip').style.left=((v.x+1)/2*host.clientWidth)+'px';$('#tip').style.top=((1-v.y)/2*host.clientHeight)+'px';}
+const yt=()=>((yearNow-1981)/44);
+function nearest(lat,lon){let best='Open water',bd=1e9;const names={'Gulf of Guinea':[2,3],'Lagos':[6.45,3.39],'Vaasa':[63.1,21.6],'North Atlantic':[45,-35],'Sahara':[23,10],'Amazon':[-4,-62],'Arctic Ocean':[82,0],'Indian Ocean':[-15,75],'Pacific Ocean':[0,-150],'Siberia':[62,100],'Southern Ocean':[-62,30],'Greenland':[72,-40],'Mediterranean':[37,18],'Congo Basin':[-1,22],'North Pacific':[38,170]};
+  for(const [n,[a,b]] of Object.entries(names)){const d=(a-lat)**2+((b-lon+540)%360-180)**2;if(d<bd){bd=d;best=n;}}return bd<900?best:(lat>0?'North ':'South ')+(Math.abs(lon)<30?'Atlantic':lon>0?'Indian Ocean':'Pacific');}
+let lastNote=0;
+function setNeedle(uv,sound){needleUV=uv;if(globeMat)globeMat.uniforms.needle.value.set(...uv);readNeedle(sound);}
+function readNeedle(sound){const [u,v]=needleUV;const lat=v*180-90,lon=u*360-180;const x=v01(rec.mode,u,v,yt());const n=noteOf(x);const p=nearest(lat,lon);
+  $('#nPlace').textContent=p;$('#tipPlace').textContent=p;$('#nCo').textContent=`${Math.abs(lat).toFixed(1)}°${lat>=0?'N':'S'} · ${Math.abs(lon).toFixed(1)}°${lon>=0?'E':'W'}`;
+  $('#nVal').textContent=fmt(rec,x);$('#nUnit').textContent=rec.unit;$('#tipVal').textContent=`${fmt(rec,x)} ${rec.unit} · ${n.name}`;
+  const an=x>.62;$('#nAnom').textContent=an?'Drum: higher than normal here':'No drum: close to normal';
+  setAccent(rampRGB(rec.ramp,x));
+  if(sound&&AC&&performance.now()-lastNote>110){lastNote=performance.now();tone(n.f,.35,rec.wave,Math.max(-1,Math.min(1,lon/90)));if(an)drum();}}
+function dropFx(){initAudio();if(platter){let k=0;const s=()=>{k+=.08;platter.position.y=-1.55-.25*Math.sin(Math.min(Math.PI,k*3))*(1-k);if(k<1)requestAnimationFrame(s);else platter.position.y=-1.55;};s();}
+  if(AC){tone(110,.6,'sine',0,.2);setTimeout(()=>tone(noteOf(.5).f,.8,rec.wave),250);}}
+$('#depthBtn').onclick=e=>{depthOn=!depthOn;e.currentTarget.setAttribute('aria-pressed',depthOn);};
+
+/* timeline */
+const cv=$('#wave'),wg=cv.getContext('2d');
+function drawWave(t){const w=cv.clientWidth,h=cv.clientHeight;if(!w)return;if(cv.width!==w*2){cv.width=w*2;cv.height=h*2;}wg.setTransform(2,0,0,2,0,0);wg.clearRect(0,0,w,h);
+  const acc=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();const pos=(yearNow-1981)/44;
+  for(let i=0;i<120;i++){const x=i/120*w,tr=.25+.6*(i/120)**1.6,v=(tr+.15*Math.sin(i*.7)+.08*Math.sin(i*2.3+t*(playing?3:0)))*h*.9;wg.fillStyle=i/120<pos?acc:'rgba(180,162,140,.28)';wg.fillRect(x,(h-v)/2,w/120*.55,v);}
+  wg.fillStyle='#f3e7d8';wg.fillRect(pos*w,0,2,h);}
+function setYear(y){yearNow=Math.round(Math.min(2025,Math.max(1981,y)));$('#vYear').textContent=yearNow;cv.setAttribute('aria-valuenow',yearNow);if(globeMat)globeMat.uniforms.yt.value=yt();readNeedle();}
+let scrub=false;cv.addEventListener('pointerdown',e=>{scrub=true;cv.setPointerCapture(e.pointerId);sc(e);});cv.addEventListener('pointermove',e=>scrub&&sc(e));cv.addEventListener('pointerup',()=>{scrub=false;if(tourStep===2)tourNext();});
+function sc(e){const r=cv.getBoundingClientRect();setYear(1981+(e.clientX-r.left)/r.width*44);}
+cv.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===']')setYear(yearNow+1);if(e.key==='ArrowLeft'||e.key==='[')setYear(yearNow-1);});
+$('#back5').onclick=()=>setYear(yearNow-5);
+let vTimer=null;$('#vPlay').onclick=()=>{initAudio();if(vTimer){clearInterval(vTimer);vTimer=null;playing=false;setPlayIcons();return;}playing=true;setPlayIcons();if(yearNow>=2025)setYear(1981);
+  vTimer=setInterval(()=>{setYear(yearNow+1);const [u,v]=needleUV;const x=v01(rec.mode,u,v,yt());tone(noteOf(x).f,.45,rec.wave);if(x>.62)drum();if(yearNow>=2025){clearInterval(vTimer);vTimer=null;playing=false;setPlayIcons();}},420);};
+
+/* ---------- NASA modal ---------- */
+let lastFocus=null;
+function openModal(id){lastFocus=document.activeElement;const m=$(id);m.hidden=false;m.querySelector('[data-close]').focus();}
+function closeModal(m){m.hidden=true;lastFocus&&lastFocus.focus();}
+document.querySelectorAll('.scrim').forEach(s=>{s.addEventListener('click',e=>{if(e.target===s||e.target.closest('[data-close]'))closeModal(s);});
+  s.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal(s);if(e.key==='Tab'){const f=[...s.querySelectorAll('button,a,input')].filter(x=>!x.disabled);const a=f[0],z=f[f.length-1];if(e.shiftKey&&document.activeElement===a){e.preventDefault();z.focus();}else if(!e.shiftKey&&document.activeElement===z){e.preventDefault();a.focus();}}});});
+$('#nasaBtn').onclick=()=>{$('#mTitle').textContent=rec.full;$('#mMeta').textContent=rec.svs?`NASA Scientific Visualization Studio · SVS ${rec.svs} · public domain`:'Extended NASA source. This is not an EIC visualization.';
+  $('#mImg').src=rec.img?SVS+rec.img:'';$('#mImg').alt=`NASA visualization: ${rec.full}. Colours run from ${rec.min} to ${rec.max} ${rec.unit}.`;$('#mImg').parentElement.style.display=rec.img?'block':'none';
+  $('#mCap').textContent=`${rec.liner} The original is an animation. Open it on NASA to play the video or download the frames.`;
+  $('#mLink').href=rec.svs?`${SVS}${rec.svs}/`:rec.page;openModal('#nasaModal');};
+$('#mListen').onclick=()=>{closeModal($('#nasaModal'));setMode('audio');chooseTopic(rec.k);};
+
+/* ---------- settings ---------- */
+$('#settingsBtn').onclick=()=>openModal('#setModal');
+$('#rate').oninput=e=>settings.rate=+e.target.value;
+$('#fsz').oninput=e=>document.documentElement.style.setProperty('--fs',e.target.value);
+$('#duck').oninput=e=>settings.duck=+e.target.value;
+$('#vib').onchange=e=>settings.vib=e.target.checked;
+$('#replayTour').onclick=()=>{closeModal($('#setModal'));setMode('visual');setTimeout(startTour,400);};
+
+/* ---------- onboarding ---------- */
+const STEPS=[
+ {sel:'.crate',t:'Drag a record onto the turntable',p:'Each record is one NASA dataset. Drag it onto the turntable to play it. With a keyboard, press Enter on a record.',anim:'drag'},
+ {sel:'#globe',t:'Drag to explore',p:'Turn the globe with your finger or mouse. The needle stays still and plays whatever passes under it. Higher notes mean higher values. With a keyboard, use the arrow keys.',anim:'hand'},
+ {sel:'#tl',t:'Travel through the years',p:'Drag along the timeline to hear one place change over time. With a keyboard, press [ and ].'},
+ {sel:'.seg',t:'Switch to audio at any time',p:'The guide can explain everything on this screen. Audio mode is always one tap away.'}];
+let tourStep=-1,ghost=null;
+function startTour(){if($('#visualView').hidden)return;tourStep=0;$('#tour').hidden=false;showStep();}
+function showStep(){const s=STEPS[tourStep];const el=$(s.sel);if(!el){endTour();return;}const r=el.getBoundingClientRect();const pad=8;
+  const spot=$('#spot');Object.assign(spot.style,{left:r.left-pad+'px',top:r.top-pad+'px',width:r.width+pad*2+'px',height:r.height+pad*2+'px'});
+  $('#cN').textContent=`Step ${tourStep+1} of ${STEPS.length}`;$('#cT').textContent=s.t;$('#cP').textContent=s.p;$('#cNext').textContent=tourStep===STEPS.length-1?'Done':'Next';
+  const c=$('#coach'),cw=Math.min(340,innerWidth-32);let x=r.right+20,y=r.top+20;if(x+cw>innerWidth-16){x=Math.max(16,r.left+r.width/2-cw/2);y=r.bottom+16;}if(y+220>innerHeight){y=Math.max(16,r.top-230);}
+  Object.assign(c.style,{left:x+'px',top:y+'px'});
+  ghost&&ghost.remove();ghost=null;
+  if(s.anim==='drag'){const sl=document.querySelector('.sleeve .cover'),d=$('#globe').getBoundingClientRect();if(sl){const a=sl.getBoundingClientRect();ghost=document.createElement('div');ghost.className='ghost';ghost.style.background=sl.style.background;document.body.appendChild(ghost);
+    ghost.animate([{left:a.left+'px',top:a.top+'px',transform:'rotate(0)',opacity:0},{opacity:1,offset:.15},{left:d.left+d.width/2-27+'px',top:d.top+d.height/2-27+'px',transform:'rotate(-8deg) scale(1.1)',opacity:1,offset:.75},{left:d.left+d.width/2-27+'px',top:d.top+d.height/2-27+'px',opacity:0}],{duration:2200,iterations:Infinity,easing:'cubic-bezier(.4,0,.2,1)'});}}
+  if(s.anim==='hand'){const d=$('#globe').getBoundingClientRect();ghost=document.createElement('div');ghost.className='hand';ghost.innerHTML='<svg viewBox="0 0 24 24" width="40" height="40" fill="#f3e7d8" stroke="#120d0a" stroke-width="1"><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5h.5V4a1.5 1.5 0 0 1 3 0v6h.5V6a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6.5 7S7 18.5 5 15l-1.5-2.5a1.5 1.5 0 0 1 2.5-1.6L9 14z"/></svg>';document.body.appendChild(ghost);
+    const cx=d.left+d.width*.5,cy=d.top+d.height*.42;ghost.animate([{left:cx-90+'px',top:cy+'px'},{left:cx+40+'px',top:cy-40+'px'},{left:cx+70+'px',top:cy+50+'px'},{left:cx-90+'px',top:cy+'px'}],{duration:3000,iterations:Infinity,easing:'ease-in-out'});}
+  $('#cNext').focus();}
+function tourNext(){if(tourStep<0)return;tourStep++;if(tourStep>=STEPS.length)endTour();else showStep();}
+function endTour(){tourStep=-1;$('#tour').hidden=true;ghost&&ghost.remove();ghost=null;store.set('jb_tour','1');}
+$('#cNext').onclick=tourNext;$('#cSkip').onclick=endTour;$('#tourBtn').onclick=startTour;
+addEventListener('keydown',e=>{if(e.key==='Escape'&&tourStep>=0)endTour();});
+addEventListener('resize',()=>{if(tourStep>=0)showStep();});
+
+/* ---------- keyboard shortcuts ---------- */
+addEventListener('keydown',e=>{if(e.target.matches('input,textarea')||!$('#gate').hidden&&$('#gate').style.display!=='none')return;
+  if(!$('#audioView').hidden){if(/^[1-6]$/.test(e.key)&&current[+e.key-1]){pick(current[+e.key-1]);}
+    if(e.key===' '&&e.target===document.body){e.preventDefault();$('#aPlay').click();}if(e.key.toLowerCase()==='w')whatWasThat();}
+  if(e.key.toLowerCase()==='v'&&!e.metaKey&&!e.ctrlKey)setMode($('#audioView').hidden?'audio':'visual');});
+
+/* ---------- start ---------- */
+$('#startBtn').onclick=()=>{initAudio();$('#gate').style.display='none';$('#gate').hidden=true;tone(noteOf(.5).f,.8,'triangle');setTimeout(welcome,500);};
+$('#startVisual').onclick=()=>{initAudio();$('#gate').style.display='none';$('#gate').hidden=true;setMode('visual');
+  welcomeLater=true;};
+let welcomeLater=false;
+if(location.hash.startsWith('#visual')){const q=new URLSearchParams(location.hash.slice(8));const la=parseFloat(q.get('lat')),lo=parseFloat(q.get('lon'));const rk=q.get('rec');
+  if(rk){const r=R.find(x=>x.k===rk);if(r)rec=r;}if(!isNaN(la)&&!isNaN(lo))needleUV=[(lo+180)/360,(la+90)/180];
+  $('#gate').style.display='none';$('#gate').hidden=true;document.querySelector('.seg').style.display='none';setMode('visual');}
+setAccent(hex2rgb('#f2a541'));
+
+$('#rotPause').onclick=e=>{autoRot=!autoRot;e.currentTarget.setAttribute('aria-pressed',!autoRot);e.currentTarget.firstChild.textContent=autoRot?'Pause rotation ':'Resume rotation ';};
+$('#rotSlow').onclick=()=>{rotSpeed=Math.max(.02,rotSpeed*.6);};$('#rotFast').onclick=()=>{rotSpeed=Math.min(1.2,rotSpeed*1.6);};
+addEventListener('keydown',e=>{if($('#visualView').hidden||e.target.matches('input'))return;if(e.key==='p'||e.key==='P')$('#rotPause').click();if(e.key==='-')$('#rotSlow').click();if(e.key==='='||e.key==='+')$('#rotFast').click();if(e.key==='Escape'&&window.parent!==window)window.parent.postMessage({jb:'close'},'*');});
+</script>
+</body>
+</html>
