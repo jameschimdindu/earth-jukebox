@@ -665,7 +665,8 @@ let conv=null,raf=0,quietSince=0,captionT=null,pending=[],connecting=false;
 /* captions show only the latest sentence (two lines at most). Each new sentence blurs in over the old one.
    About 6 s after Juke stops talking, the caption fades out. Screen readers get each full message in #srCap. The full record is in More, Transcript (T). */
 const LOG=[];let capQ=[],capTimer=null;
-function splitSentences(t){return (t.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g)||[t]).map(x=>x.trim()).filter(Boolean);}
+/* split only where a full stop, question or exclamation mark is followed by a space, so numbers like 4.9 stay whole */
+function splitSentences(t){return t.split(/(?<=[.!?]["')\]]*)\s+/).map(x=>x.trim()).filter(Boolean);}
 function showLine(who,text,again){const c=$('#captions');c.style.opacity=1;const html=`${again?'':`<span class="who">${who==='you'?'You':'Juke'}</span>`}<span class="${who==='you'?'you':''}">${text.replace(/</g,'&lt;')}</span>${again?'<button class="pill again" type="button" id="againBtn">Talk again <kbd>R</kbd></button>':''}`;
   const old=c.querySelector('.line');const put=()=>{c.innerHTML=`<div class="line swap">${html}</div>`;if(again)$('#againBtn').onclick=talkAgain;fitCaption();requestAnimationFrame(()=>c.querySelector('.line')?.classList.remove('swap'));};
   if(old&&!reduce){old.classList.add('swap');setTimeout(put,160);}else put();}
