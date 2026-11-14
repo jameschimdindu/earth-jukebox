@@ -6,7 +6,8 @@ const AGENT_ID = 'agent_4301m7cxc5g6ew78t8x4egjwrb4r';
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  const key = process.env.ELEVENLABS_API_KEY;
+  // trim spaces, line breaks and quote marks that can come along when the key is pasted
+  const key = (process.env.ELEVENLABS_API_KEY || '').trim().replace(/^['"]|['"]$/g, '').trim();
   if (!key) {
     res.status(503).json({ error: 'not_configured' });
     return;
