@@ -409,6 +409,12 @@ def update_air():
         if len(e) > 100:
             res.append((float(np.abs(e).mean()), sh, len(e)))
     res.sort()
+    # round 77: with few pairs (places left out) the hour is ambiguous; then keep the write-time guess if it still fits
+    by = {sh: e for e, sh, _ in res}
+    clear = res and res[0][2] >= 300 and (len(res) < 2 or res[1][0] - res[0][0] >= 0.05)
+    if res and not clear and 0 in by and by[0] <= 1.5:
+        print(f"air: the check is not clear ({[(round(e, 2), sh, n) for e, sh, n in res[:3]]}); keeping the write-time hour", flush=True)
+        res = [(by[0], 0, [n for e, sh, n in res if sh == 0][0])]
     if not res or res[0][0] > 1.5:
         raise RuntimeError(f"air: the frames do not match GEOS-FP at any hour near {guess} ({res[:3]}); not updating")
     t0 = guess + dt.timedelta(hours=res[0][1])
