@@ -690,7 +690,7 @@ const noteOf=x=>{const i=Math.round(Math.max(0,Math.min(1,x))*14),m=48+12*Math.f
 const pitchWords=x=>x<.2?'a very low note':x<.4?'a low note':x<.6?'a middle note':x<.8?'a high note':'a very high note';
 /* the value for the screen: the anomaly's words already hold the number ("1.3 degrees warmer than normal") */
 const valueLine=(x,cap=true)=>cur.rec==='ssta'?valueWords(x).replace(/^./,c=>cap?c.toUpperCase():c):`${val(x)} ${REC[cur.rec].unit}, ${valueWords(x)}`;
-function valueWords(x){const r=cur.rec;if(r==='sst')return x<.25?'cold for the sea':x<.55?'cool for the sea':x<.8?'warm for the sea':'very warm for the sea';if(r==='ssta'){const v=val(x,'ssta'),a=Math.abs(v);return a<SSTA_ERR?'close to normal':`${a>=3.9?'at least 4 degrees':a===1?'1 degree':a+' degrees'} ${v>0?'warmer':'cooler'} than normal`;}
+function valueWords(x){const r=cur.rec;if(r==='sst')return x<.25?'cold for the sea':x<.55?'cool for the sea':x<.8?'warm for the sea':'very warm for the sea';if(r==='ssta'){const v=val(x,'ssta'),a=Math.abs(v);return a<SSTA_ERR?'close to normal':`${a>=SSTA_LIMIT?'at least 4 degrees':a===1?'1 degree':a+' degrees'} ${v>0?'warmer':'cooler'} than normal`;}
   if(r==='air')return x<.3?'freezing air':x<.55?'mild air':x<.8?'warm air':'hot air';if(r==='ice')return x<.1?'open water':x<.6?'some ice':'mostly ice';if(r==='bio')return x<.25?'little plant life':x<.6?'some plant life':'a lot of plant life';return x<.1?'no fires':x<.5?'a few fires':'many fires';}
 /* the value now (latest week with data) as 0..1, or null where there is no data */
 function base01(rec,lat,lon){if(hasReal(rec)){const s=realSeries(rec,lat,lon);if(!s)return null;for(let i=s.t.length-1;i>=0;i--)if(s.t[i]!=null)return toX(rec,s.t[i]);return null;}return mockBase(rec,lat,lon);}
@@ -701,13 +701,16 @@ function mockBase(rec,lat,lon){const a=Math.abs(lat)/90,L=isLand(lat,lon);
    One note = one week. Records without real data keep the sample series (one note per year, 1981 to 2025) and say so. */
 const REAL={};
 /* sea temperature anomaly: decoded from NASA's daily lossless frames (pipeline/sst_anomaly.py), checked against NOAA's MUR anomaly (docs/PROCESS.md, round 60) */
-const SSTA_ERR=0.22,SSTA_SOURCE='Real: decoded from NASA\'s daily frames (SVS 5176), weekly mean on a 1-degree grid. Zero means normal for that place and time of year. Measured error against the satellite record: about 0.2 degrees Celsius on average.';
+/* the end of NASA's bar (4 degrees) decodes to 3.84 after the centre-band correction (round 62), so the limit check starts at 3.8 */
+const SSTA_LIMIT=3.8;
+const SSTA_ERR=0.17,SSTA_SOURCE='Real: decoded from NASA\'s daily frames (SVS 5176), weekly mean on a 1-degree grid. Zero means normal for that place and time of year. Measured error against the satellite record: about 0.2 degrees Celsius on average.';
 const drumMeans=rec=>rec==='ssta'?'warmer than normal for that time of year':hasReal(rec)?'warmer than the average of the weeks before it in this track':'above the average so far';
 /* per record: folder, how a stored byte becomes a value (value = byte * scale + offset), decimals, and the measured error against the satellite record */
 const REAL_SRC={
- sst:{dir:'data/sst',scale:.2,offset:-5,dp:1,err:.33,source:'Real: decoded from NASA\'s picture (SVS 5101), weekly mean on a 1-degree grid. Measured error against the satellite record: about 0.3 degrees Celsius on average.'},
+ sst:{dir:'data/sst',scale:.2,offset:-5,dp:1,err:.2,source:'Real: decoded from NASA\'s daily frames (SVS 5101), weekly mean on a 1-degree grid. Measured error against the satellite record: about 0.2 degrees Celsius on average.'},
  ssta:{dir:'data/sst_anomaly',scale:.04,offset:-4,dp:1,err:SSTA_ERR,source:SSTA_SOURCE}};
-const realDec=(rec,v)=>v===255?null:+(v*REAL_SRC[rec].scale+REAL_SRC[rec].offset).toFixed(REAL_SRC[rec].dp);
+/* the anomaly's bar ends read 3.84 after the centre-band correction; they are NASA's ±4 ends, so they report ±4 (and at_bar_limit) */
+const realDec=(rec,v)=>{if(v===255)return null;let t=+(v*REAL_SRC[rec].scale+REAL_SRC[rec].offset).toFixed(REAL_SRC[rec].dp);if(rec==='ssta'&&Math.abs(t)>=SSTA_LIMIT)t=Math.sign(t)*4;return t;};
 const realReady=Promise.all(Object.entries(REAL_SRC).map(async([rec,src])=>{try{const meta=await(await fetch(src.dir+'/meta.json')).json();let buf=new Uint8Array(await(await fetch(src.dir+'/weekly.bin.gz')).arrayBuffer());
   if(buf[0]===0x1f&&buf[1]===0x8b)buf=new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const n=meta.week_starts.length;if(buf.length!==n*64800)throw new Error('unexpected size');REAL[rec]={meta,data:buf,n};}catch(e){console.warn(`Real data for ${rec} not loaded, sample values in use.`,e);}}));
@@ -736,7 +739,7 @@ function readingFor(rec,lat,lon,i){const sp=samplePoint(rec,lat,lon),real=hasRea
   const prior=s.slice(0,i).filter(v=>v!=null),prev=prior.length?prior[prior.length-1]:x,avg=prior.length?prior.reduce((a,b)=>a+b,0)/prior.length:x,n=noteOf(x);
   const cell=real?dataCell(rec,sp.lat,sp.lon):null;
   return {x,...when,value:val(x,rec),unit:REC[rec].unit,value_words:valueWords(x),pitch_words:pitchWords(x),compared_with_previous:x>prev+.01?`higher than the ${unit_} before`:x<prev-.01?`lower than the ${unit_} before`:`about the same as the ${unit_} before`,
-    drum:rec==='ssta'?val(x,rec)>0:x-avg>.04,drum_means:drumMeans(rec),...(rec==='ssta'&&Math.abs(val(x,rec))>=3.9?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real value may be even further from normal.'}:{}),instrument:cur.inst,side:sideOf(lon),water_name:sp.water,note_name:n.name,frequency_hz:n.hz,
+    drum:rec==='ssta'?val(x,rec)>0:x-avg>.04,drum_means:drumMeans(rec),...(rec==='ssta'&&Math.abs(val(x,rec))>=SSTA_LIMIT?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real value may be even further from normal.'}:{}),instrument:cur.inst,side:sideOf(lon),water_name:sp.water,note_name:n.name,frequency_hz:n.hz,
     ...(real?{data:REAL_SRC[rec].source,sea_data_km_from_place:cell?Math.round(angDist(lat,lon,cell.lat,cell.lon)*6371):null}:{data:'Sample value. Real NASA values for this record come later.'})};}
 const reading=i=>({mock:!hasReal(cur.rec),place:fullPlace(),record:REC[cur.rec].name,...readingFor(cur.rec,cur.lat,cur.lon,i)});
 function currentX(){const sp=samplePoint();if(prog&&prog.type==='track')return seriesFor(cur.rec,sp.lat,sp.lon)[Math.max(prog.from,trackI-1)];if(prog&&prog.type==='year')return seriesFor(cur.rec,sp.lat,sp.lon)[prog.i];return base01(cur.rec,sp.lat,sp.lon);}
@@ -788,7 +791,7 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
   const words=same?`about the same: the difference, ${Math.abs(diff)} degrees, is smaller than the measured error of about ${err<.25?'0.2':'0.3'} degrees`:`${Math.abs(diff)} degrees Celsius ${diff>0?'warmer':'cooler'}${rec==='ssta'?', compared with normal,':''} than the same week a year before`;
   $('#srStatus').textContent=`Then and now at ${fullPlace()}. ${stepLabel(rec,j,true)}: ${tv} degrees. ${stepLabel(rec,i,true)}: ${nv} degrees. ${same?'About the same.':`${Math.abs(diff)} degrees ${diff>0?'warmer':'cooler'}.`}`;
   updPlayer();setIcon();
-  return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,...(rec==='ssta'?{then_words:valueWords(toX(rec,tv)),now_words:valueWords(toX(rec,nv)),...(Math.max(Math.abs(tv),Math.abs(nv))>=3.9?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real difference may be larger.'}:{})}:{}),
+  return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,...(rec==='ssta'?{then_words:valueWords(toX(rec,tv)),now_words:valueWords(toX(rec,nv)),...(Math.max(Math.abs(tv),Math.abs(nv))>=SSTA_LIMIT?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real difference may be larger.'}:{})}:{}),
     sound:'then on the left, now on the right, each as three notes, then both notes together; a drum if now is warmer',
     note:'The sound has just played. Speak now: say the result in one or two sentences, with both weeks, both values and difference_words. Do not give a cause. Then ask what next.'};}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}

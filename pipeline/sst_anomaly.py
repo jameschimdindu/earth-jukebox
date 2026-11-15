@@ -44,6 +44,18 @@ MAX_DIST = 0.05  # colour distance (float RGB) above which a pixel is not on the
 NEAR_ZERO, NEAR_ZERO_DIST = 0.35, 0.13
 
 
+# NASA's map palette leaves out a band in the middle of the colour bar, about 55 bar pixels each side of the jump
+# (round 62). Without this, values sat about 0.75 degrees (SST) or 0.15 degrees (anomaly) too far from the jump; both records,
+# fitted on half of the test points, gave the same band (52 and 58 px). Applied when days are averaged, and in validate.
+CENTRE_BAND_PX = 55
+
+
+def centre_fix(v):
+    j = 0.0
+    o = v - j
+    return j + np.sign(o) * np.maximum(0, np.abs(o) - CENTRE_BAND_PX / PX_PER_C)
+
+
 def on_bar(d, v):
     return (d <= MAX_DIST) | ((np.abs(v) < NEAR_ZERO) & (d <= NEAR_ZERO_DIST))
 
@@ -142,7 +154,7 @@ def validate():
         for name, (lat, lon) in POINTS.items():
             y, x = int((90 - lat) / 180 * 2048), int((lon + 180) / 360 * 4096)
             win = g[y - 2:y + 3, x - 2:x + 3]
-            ours = float(np.nanmedian(win)) if np.isfinite(win).sum() >= 13 else None
+            ours = float(centre_fix(np.nanmedian(win))) if np.isfinite(win).sum() >= 13 else None
             ref = known.get((day(n).isoformat(), name))
             if ref is None:
                 ref = mur_box(day(n), lat, lon)
@@ -205,7 +217,7 @@ def weekly():
     for w in range(n_weeks):
         have = [n for n in range(7 * w, 7 * w + 7) if (DAYS / f"{n:03d}.npy").exists()]
         used.append(len(have))
-        stack = np.stack([np.load(DAYS / f"{n:03d}.npy") for n in have])
+        stack = centre_fix(np.stack([np.load(DAYS / f"{n:03d}.npy") for n in have]))
         ok = np.isfinite(stack).sum(0) * 2 >= len(have)  # sea on at least half of the decoded days
         mean = np.nanmean(np.where(ok[None], stack, np.nan), 0) if ok.any() else None
         q[w][ok] = np.clip(np.round((mean[ok] + 4) / 0.04), 0, 200).astype(np.uint8)
