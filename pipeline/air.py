@@ -154,7 +154,13 @@ def geos_all(last_index, span):
             return i0, {k: np.array(v) for k, v in c["series"].items()}
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(3) as ex:
-        got = dict(zip(POINTS, ex.map(lambda kv: geos_series(kv[1][0], kv[1][1], i0, last_index), POINTS.items())))
+        def safe(kv):  # one place that GEOS-FP does not answer must not stop the check (round 74)
+            try:
+                return geos_series(kv[1][0], kv[1][1], i0, last_index)
+            except RuntimeError as e:
+                print(f"   GEOS-FP: {e}; this place is left out", flush=True)
+                return np.array([])
+        got = dict(zip(POINTS, ex.map(safe, POINTS.items())))
     cache.write_text(json.dumps({"i0": i0, "series": {k: v.tolist() for k, v in got.items()}}))
     return i0, got
 

@@ -47,7 +47,7 @@ jobs:
           git config user.name "earth-jukebox-data-bot"
           git config user.email "actions@users.noreply.github.com"
           git add mockups/data pipeline/state
-          if git diff --cached --quiet; then echo "No new data."; else git commit -m "Daily NASA data update $(date -u +%Y-%m-%d)" && git push; fi
+          if git diff --cached --quiet; then echo "No new data."; else git commit -m "Daily NASA data update $(date -u +%Y-%m-%d)" && git pull --rebase -X theirs && git push; fi
       - name: Report records that did not update
         if: steps.sst.outcome == 'failure' || steps.ssta.outcome == 'failure' || steps.ice.outcome == 'failure' || steps.fire.outcome == 'failure' || steps.air.outcome == 'failure'
         run: |
