@@ -135,6 +135,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .opt .ck{margin:4px 0 0 auto;width:16px;height:16px;flex:none;stroke:var(--accent);fill:none;stroke-width:2.2;opacity:0;transform:scale(.8);transition:opacity .16s var(--ease-out),transform .16s var(--ease-out)}
 .opt[aria-pressed=true]{background:var(--w4)}
 .opt[aria-pressed=true] .ck{opacity:1;transform:none}
+.opt .spk{margin:4px 0 0 8px;width:16px;height:16px;flex:none;fill:var(--accent)}
+#shortcuts.quiet{display:none}
 
 /* captions: max 560 wide, 40 px from the globe and 40 px from the shortcuts */
 #captions{position:fixed;left:50%;top:calc(50% + var(--orb)*.41 + 40px);height:88px;transform:translateX(-50%);width:min(560px,calc(100vw - 32px));text-align:center;z-index:5;font-weight:300;font-size:24px;line-height:32px;transition:opacity .4s var(--ease-out);display:flex;flex-direction:column;justify-content:center;overflow:hidden;pointer-events:none}
@@ -182,8 +184,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #fieldMenu{position:fixed;z-index:40;right:auto;top:auto;width:296px;max-height:min(440px,calc(100vh - 32px));overflow:auto;transform-origin:top left}
 #fieldMenu .opt{min-height:40px;padding:8px 12px}
 #fieldMenu .hd{padding:12px 12px 4px;color:var(--mute);font-size:12px;line-height:16px}
-.psearch{padding:12px}
-.psearch input{width:100%;height:40px;padding:0 12px;border:0;border-radius:99px;background:var(--black);color:var(--ink);font:inherit;font-size:16px;box-shadow:inset 0 0 0 1px var(--line)}
+.psearch{padding:8px 12px 4px}
+.psearch input{width:100%;height:40px;padding:0 16px;border:0;border-radius:99px;background:var(--black);color:var(--ink);font:inherit;font-size:16px;box-shadow:inset 0 0 0 1px var(--line)}
 .psearch input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .psearch .msg{color:var(--mute);font-size:12px;line-height:16px;padding:8px 0 0}
 .psearch .msg:empty{display:none}
@@ -295,6 +297,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
         <button role="menuitem" data-act="src">The record <span class="go"><kbd>N</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="log">Transcript <span class="go"><kbd>T</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="keys">Keyboard shortcuts <span class="go"><kbd>?</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button role="menuitem" data-act="then" id="thenBtn">Then and now <kbd>Y</kbd></button>
         <button role="menuitem" data-act="share" id="shareBtn">Copy a link to this place <kbd>C</kbd></button>
         <div class="sep" role="separator"></div>
         <button role="menuitem" data-act="end" id="endBtn">End the conversation <kbd>R</kbd></button>
@@ -317,6 +320,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
           <kbd>←</kbd><span><kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> turn the globe and hear each place. You can also drag it.</span>
           <kbd>Space</kbd><span>Play or pause</span>
           <kbd>H</kbd><span>Go to My place</span>
+          <kbd>Y</kbd><span>Then and now: the same week a year apart (sea records)</span>
           <kbd>R</kbd><span>Talk again after a pause</span>
           <kbd>L</kbd><span>Download what is playing</span>
           <kbd>O</kbd><span>Options</span>
@@ -796,6 +800,8 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
     say:(()=>{const w=k=>stepLabel(rec,k,true).replace(/^the week of /,'');const v=(t,k)=>rec==='ssta'?valueWords(toX(rec,t)):`${t} degrees Celsius`;
       return `Week of ${w(j)}: ${v(tv)}. Week of ${w(i)}: ${v(nv)}. That is ${words}.`;})(),
     note:'The sound has just played. Say `say` in your own words and nothing else (no key, no cause), then ask what next in one short question.'};}
+function thenAndNowUI(){if(!hasReal(cur.rec)){const m=`Then and now needs real data. ${REC[cur.rec].name} still uses sample values.`;$('#srStatus').textContent=m;if(!conv)caption('juke',m);return;}
+  if(conv){send(THEN_ASK);return;}thenAndNow({});}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
 /* the logo: pause, play again, or go home */
 $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
@@ -976,10 +982,16 @@ async function endConv(why='you'){endedBy=why;cancelAnimationFrame(raf);const c=
 const spinName=()=>(PLACES[cur.place]&&cur.place!=='Equator'&&cur.place!=='Arctic Ocean')||(cur.country&&!/^Land at/.test(cur.place))?`${cur.place}'s latitude`:'this latitude';
 /* when Juke asks a question with options, it calls offer_choices and the chips show those options until the person answers */
 let offered=null;
-const SHORTCUTS=()=>offered||[`Spin the world at ${spinName()}`,`What does ${REC[cur.rec].short} sound like here?`,'Change the instrument'];
+const THEN_ASK='How has this place changed since last year?';
+/* the third shortcut asks for Then and now on records with real data (round 65); sample records keep "Change the instrument" */
+const SHORTCUTS=()=>offered||[`Spin the world at ${spinName()}`,`What does ${REC[cur.rec].short} sound like here?`,hasReal(cur.rec)?THEN_ASK:'Change the instrument'];
 function offerChoices(list){offered=list&&list.length?list.slice(0,3):null;drawShortcuts();}
 const chips=[0,1,2].map(i=>{const b=document.createElement('button');b.className='chip';b.type='button';b.innerHTML=`<kbd>${i+1}</kbd><span></span>`;b.setAttribute('aria-keyshortcuts',String(i+1));b.onclick=()=>useShortcut(i);$('#shortcuts').appendChild(b);return b;});
-function drawShortcuts(){const l=SHORTCUTS();chips.forEach((c,i)=>{const t=l[i];c.hidden=!t;if(!t)return;c.setAttribute('aria-label',t);c.querySelector('span').textContent=t;});$('#shortcuts').setAttribute('aria-label',offered?'Answers to Juke':'Shortcuts');}
+function drawShortcuts(){const l=SHORTCUTS();chips.forEach((c,i)=>{const t=l[i];c.hidden=!t;if(!t)return;c.setAttribute('aria-label',t);c.querySelector('span').textContent=t;});$('#shortcuts').setAttribute('aria-label',offered?'Answers to Juke':'Shortcuts');
+  /* short screens (under 800 px tall) with the transcript open: the default shortcuts hide, Juke's choices still show. Keys 1 to 3 always work */
+  $('#shortcuts').classList.toggle('quiet',!offered&&innerHeight<800&&!$('#menu').hidden&&!$('#mv-log').hidden);}
+realReady.then(()=>drawShortcuts());
+new MutationObserver(()=>drawShortcuts()).observe($('#menu'),{attributes:true,attributeFilter:['hidden'],subtree:true});addEventListener('resize',()=>drawShortcuts());
 function useShortcut(i){const t=SHORTCUTS()[i];if(t)send(t);}
 
 /* ================= metal send button (libraries.dev metal-fx), reflecting on the field and the chips ================= */
@@ -1028,7 +1040,7 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
 ['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
@@ -1075,6 +1087,8 @@ function placeSearch(host,done,id){const w=document.createElement('div');w.class
   inp.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(run,300);});
   inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(t);const f=res.querySelector('button');f?f.click():run();}if(e.key==='ArrowDown'){const f=res.querySelector('button');if(f){e.preventDefault();e.stopPropagation();f.focus();}}});
   host.appendChild(w);return inp;}
+/* "Surprise me" ends with a sparkle, after the tick (round 65) */
+const sparkle=b=>{b.insertAdjacentHTML('beforeend','<svg class="spk" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>');return b;};
 let fmFor=null;
 function fmItem(label,small,on,act){const b=document.createElement('button');b.type='button';b.className='opt';b.setAttribute('aria-pressed',!!on);
   b.innerHTML=`<span>${label}${small?`<small>${small}</small>`:''}</span><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>`;b.onclick=()=>{act();closeFieldMenu(true);};return b;}
@@ -1082,7 +1096,7 @@ function openFieldMenu(kind){const m=$('#fieldMenu'),btn=$({rec:'#fRec',inst:'#f
   const hd=t=>{const d=document.createElement('div');d.className='hd';d.textContent=t;m.appendChild(d);};
   if(kind==='rec'){m.setAttribute('aria-label','Choose a record');Object.entries(REC).forEach(([k,r])=>m.appendChild(fmItem(r.name,hasReal(k)?'Real NASA values, week by week':'Sample values for now',cur.rec===k,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);})));}
   if(kind==='inst'){m.setAttribute('aria-label','Choose an instrument');INSTRUMENTS.forEach(n=>m.appendChild(fmItem(n[0].toUpperCase()+n.slice(1),'',cur.instMode!=='random'&&cur.inst===n,()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
-    m.appendChild(fmItem('Surprise me','A different instrument for each track',cur.instMode==='random',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);}));}
+    m.appendChild(sparkle(fmItem('Surprise me','A different instrument for each track',cur.instMode==='random',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);})));}
   if(kind==='place'){m.setAttribute('aria-label','Choose a place');placeSearch(m,()=>closeFieldMenu(true),'fmSearch');{const d=document.createElement('div');d.className='sep';m.appendChild(d);}const h=myPlace();
     m.appendChild(fmItem('My place',h.fallback?'Vaasa, Finland, used when your location is not shared':fullPlace({place:h.name,country:h.country}),cur.isHome,()=>goHome(true)));
     const rec=recentPlaces.filter(p=>!(cur.isHome&&p.name===h.name));if(rec.length){hd('Recent');rec.forEach(p=>m.appendChild(fmItem(p.name,p.country,!cur.isHome&&cur.place===p.name&&cur.country===p.country,()=>choosePlace(p))));}}
@@ -1102,7 +1116,7 @@ placeSearch(tp('place'),null,'optSearch');sep('place');tp('place').appendChild(o
 Object.entries(PLACES).forEach(([n,v])=>tp('place').appendChild(opt('place',n,n,v[2],()=>{goPlace(n);conv&&conv.sendContextualUpdate(`The person moved the globe to ${fullPlace()}.`);})));
 /* Instrument */
 INSTRUMENTS.forEach(n=>tp('instrument').appendChild(opt('inst',n,n[0].toUpperCase()+n.slice(1),'',()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
-sep('instrument');tp('instrument').appendChild(opt('inst','random','Surprise me','A different instrument for each track',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);}));
+sep('instrument');tp('instrument').appendChild(sparkle(opt('inst','random','Surprise me','A different instrument for each track',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);})));
 /* Voice */
 note('voice','Changing the voice restarts the conversation.');
 VOICES.forEach(v=>tp('voice').appendChild(opt('voice',v.id,v.n,v.d,async()=>{if(cur.voice===v.id)return;cur.voice=v.id;syncOpts();if(conv){caption('juke','Switching my voice. One second.');await endConv('voice');start(lastOpts);}})));
@@ -1158,6 +1172,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='?'||(k==='/'&&e.shiftKey))openMenu('keys',true);else if(k==='/'){e.preventDefault();closePanels(true);$('#typeIn').focus();}
   if(k==='t'){renderLog();openMenu('log',true);}
   if(k==='c')copyLink();
+  if(k==='y')thenAndNowUI();
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
