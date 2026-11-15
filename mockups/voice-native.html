@@ -297,6 +297,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
         <button role="menuitem" data-act="src">The record <span class="go"><kbd>N</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="log">Transcript <span class="go"><kbd>T</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="keys">Keyboard shortcuts <span class="go"><kbd>?</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button role="menuitem" data-act="today" id="todayBtn">Today <kbd>D</kbd></button>
         <button role="menuitem" data-act="then" id="thenBtn">Then and now <kbd>Y</kbd></button>
         <button role="menuitem" data-act="share" id="shareBtn">Copy a link to this place <kbd>C</kbd></button>
         <div class="sep" role="separator"></div>
@@ -320,6 +321,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
           <kbd>←</kbd><span><kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> turn the globe and hear each place. You can also drag it.</span>
           <kbd>Space</kbd><span>Play or pause</span>
           <kbd>H</kbd><span>Go to My place</span>
+          <kbd>D</kbd><span>Today: the newest note at this place</span>
           <kbd>Y</kbd><span>Then and now: the same week a year apart (sea records)</span>
           <kbd>R</kbd><span>Talk again after a pause</span>
           <kbd>L</kbd><span>Download what is playing</span>
@@ -780,7 +782,7 @@ function setProg(p){prog={rec:cur.rec,place:cur.place,country:cur.country,lat:cu
 function setIcon(){const p=playingSomething();$('#pIcon').innerHTML=p?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4v16l13-8z"/>';$('#pPlay').setAttribute('aria-label',p?'Pause':'Play');
   $('#logoBtn').setAttribute('aria-label',p?'Pause':canResume()?'Play again':'Go to My place');$('#logoBtn').title=p?'Pause (Space)':canResume()?'Play again (Space)':'Go to My place (H)';}
 function setFld(id,text,label){const b=$(id);const t=id==='#fRec'?$('#fRecT'):b;if(t.textContent!==text)t.textContent=text;b.setAttribute('aria-label',`${label}: ${text}. Change`);}
-function updPlayer(){const sp=samplePoint();setFld('#fRec',REC[cur.rec].name,'Record');setFld('#fInst',cur.inst,'Instrument');setFld('#fPlace',fullPlace(),'Place');
+function updPlayer(){/* a note from another record does not belong to this one (round 74) */if(prog&&prog.rec&&prog.rec!==cur.rec&&prog.type!=='spin')prog=null;const sp=samplePoint();setFld('#fRec',REC[cur.rec].name,'Record');setFld('#fInst',cur.inst,'Instrument');setFld('#fPlace',fullPlace(),'Place');
   $('#pWater').textContent=REC[cur.rec].sea&&sp.water&&isLand(cur.lat,cur.lon)?`Sea: ${sp.water}`:'';$('#pVal').textContent='';
   if(!prog){$('#pYear').textContent='Ready';$('#pBar').style.width='0';return;}
   if(prog.type==='then'){const s=realSeries(cur.rec,sp.lat,sp.lon);$('#pYear').textContent='Then and now';$('#pVal').textContent=s?`${stepLabel(cur.rec,prog.j)}: ${cur.rec==='ssta'&&s.t[prog.j]>0?'+':''}${s.t[prog.j]}${unitShort(cur.rec)}, ${stepLabel(cur.rec,prog.i)}: ${cur.rec==='ssta'&&s.t[prog.i]>0?'+':''}${s.t[prog.i]}${unitShort(cur.rec)}`:'';$('#pBar').style.width='100%';return;}
@@ -824,6 +826,18 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
     say:(()=>{const w=k=>stepLabel(rec,k,true).replace(/^the week of /,'');const v=(t,k)=>rec==='ssta'?valueWords(toX(rec,t)):temp?`${t} degrees Celsius`:`${valueSay(rec,t)}, ${valueWords(toX(rec,t))}`;
       return `Week of ${w(j)}: ${v(tv)}. Week of ${w(i)}: ${v(nv)}. That is ${words}.`;})(),
     note:'The sound has just played. Say `say` in your own words and nothing else (no key, no cause), then ask what next in one short question.'};}
+/* Today (round 74): the newest note with data at this place, played once. Daily updates keep it current */
+const TODAY_ASK='What does this place sound like today?';
+function playToday(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[rec].name} has no real data loaded.`};
+  const sp=samplePoint(),n=steps(rec),s=seriesFor(rec,sp.lat,sp.lon);let i=n-1;while(i>=0&&s[i]==null&&i>n-27)i--;
+  if(i<0||s[i]==null)return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no recent data near ${fullPlace()}.`};
+  clearInterval(trackTimer);trackTimer=null;stopSpinSound();const r=readingFor(rec,cur.lat,cur.lon,i);
+  tone(r.frequency_hz,1,posOf(cur.lat,cur.lon));if(r.drum)setTimeout(drum,300);if(hasReal(rec))paintWeek(rec,i);tintTo(rec,r.x);setProg({type:'year',i});updPlayer();setIcon();
+  $('#srStatus').textContent=`Today at ${fullPlace()}: ${stepLabel(rec,i,true)}, ${r.value} ${r.unit}, ${r.value_words}.`;
+  return{place:fullPlace(),water_name:sp.water,just_played:stepLabel(rec,i,true),newest_in_record:stepLabel(rec,n-1,true),value:r.value,unit:r.unit,value_words:r.value_words,pitch_words:r.pitch_words,
+    ...(r.forecast?{forecast:r.forecast}:{}),...(i<n-1?{note_on_gaps:'The newest weeks have no data at this place, so this is the newest note that has.'}:{}),
+    data:r.data,note:'The note has just played. Say the date and the value in one or two short sentences, then ask what next.'};}
+function todayUI(){if(conv){send(TODAY_ASK);return;}const r=playToday();if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}}
 function thenAndNowUI(){if(!canThen(cur.rec)){const m=hasReal(cur.rec)?`Then and now needs a year of data. ${REC[cur.rec].name} covers about 15 days.`:`Then and now needs real data. ${REC[cur.rec].name} still uses sample values.`;$('#srStatus').textContent=m;if(!conv)caption('juke',m);return;}
   if(conv){send(THEN_ASK);return;}thenAndNow({});}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
@@ -906,6 +920,7 @@ async function locate(){if(!navigator.geolocation)return null;
 
 /* ================= client tools (mock data) ================= */
 const tools={
+ play_today:()=>JSON.stringify(playToday()),
  then_and_now:async(a)=>{const r=thenAndNow(a||{});if(!r.error)await new Promise(ok=>setTimeout(ok,4600));return JSON.stringify(r);},
  offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}. You have not spoken yet: now say aloud what you wanted to say, and your question. Do not skip your turn.`;},
  list_records:()=>JSON.stringify(Object.entries(REC).map(([id,r])=>({id,name:r.name,unit:r.unit,data:hasReal(id)?`real values from NASA, one note per ${noteUnit(id)}`:'sample values for now',then_and_now:hasReal(id)}))),
@@ -978,6 +993,8 @@ setInterval(()=>{if(!conv||connecting)return;const now=performance.now();if(play
 function talkAgain(){if(conv||connecting)return;caption('juke','Connecting again.');start(lastOpts);}
 async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts;endedBy=null;activity();audio();reveal();if(opts.textOnly)$('#typeIn').focus();setState('processing','Finding where you are');
   if(!home){home=await locate();}await realReady;goHome();
+  /* a shared link moves the globe before the call starts, so Juke's greeting names the linked place (round 74) */
+  if(linkIn.get('place')&&!linkUsed){linkUsed=true;applyLink();}
   setState('processing','Connecting to Juke');
   try{const {Conversation}=await import('https://esm.sh/@elevenlabs/client@1.32.1');
     /* ask our server for a short-lived token (the API key stays on the server). If there is no server or no key, use the public agent id */
@@ -1065,7 +1082,7 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='today'){closeMenu(true);todayUI();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
 ['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
@@ -1198,6 +1215,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='t'){renderLog();openMenu('log',true);}
   if(k==='c')copyLink();
   if(k==='y')thenAndNowUI();
+  if(k==='d')todayUI();
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];

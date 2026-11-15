@@ -37,11 +37,11 @@ RY = np.array([0.0000, 0.0620, 0.1240, 0.1860, 0.2480, 0.3100, 0.3720, 0.4340, 0
 
 
 def date_of(n):
-    return D1 + dt.timedelta(days=(n - 1) * 730 / 899)
+    return D1 + dt.timedelta(days=(n - 1) * 730 / (N - 1))
 
 
 def frame_for(d):
-    return int(round((d - D1).days * 899 / 730)) + 1
+    return int(round((d - D1).days * (N - 1) / 730)) + 1
 
 
 def frame(n):
