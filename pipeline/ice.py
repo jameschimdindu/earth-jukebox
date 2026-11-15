@@ -102,6 +102,61 @@ def sea_cells():
 SUB = (np.arange(4) + 0.5) / 4 - 0.5  # 4 x 4 samples inside each 1-degree cell
 
 
+# Coast fix (round 77): pixels that are open water in at least one frame of a year ("ever water"). In a cell that has
+# some ever-water samples, samples that never show water are land or snow on the coast, and are left out. A cell with no
+# ever-water sample at all is permanent pack ice (for example the central Arctic) and keeps all its samples.
+COAST_FILE = HERE / "state" / "ice" / "ever_water.npy.gz"
+EVER = None
+
+
+def ever_water():
+    global EVER
+    if EVER is None and COAST_FILE.exists():
+        import io
+        EVER = np.unpackbits(np.load(io.BytesIO(gzip.decompress(COAST_FILE.read_bytes())))).astype(bool)[:2160 * 4320].reshape(2160, 4320)
+    return EVER
+
+
+def is_water(px):
+    return (px[..., 2] > px[..., 0] + 0.08) & (px[..., 2] < 0.6)
+
+
+def build_ever_water(days):
+    """OR of open water over frames spread across the newest year of NASA's window."""
+    import io
+    pick = [days[-1] - dt.timedelta(days=k) for k in range(0, 365, 36)]
+    avail = set(days)
+    ever = np.zeros((2160, 4320), bool)
+    for d in pick:
+        cands = [d + dt.timedelta(days=j) for j in (0, -1, 1, -2, 2) if d + dt.timedelta(days=j) in avail]
+        if not cands:
+            continue
+        p = frame(cands[0])
+        ever |= is_water(rgb(p))
+        p.unlink()
+        print(f"   ever water: {cands[0]}", flush=True)
+    COAST_FILE.parent.mkdir(parents=True, exist_ok=True)
+    buf = io.BytesIO()
+    np.save(buf, np.packbits(ever.ravel()))
+    COAST_FILE.write_bytes(gzip.compress(buf.getvalue(), 9))
+    global EVER
+    EVER = ever
+    print(f"ever-water mask: {ever.mean():.1%} of pixels, from {len(pick)} frames")
+
+
+def coast_filter(f, lat, lon):
+    """f: samples with shape (16, cells). Leave out never-water samples in cells that have ever-water samples."""
+    ev = ever_water()
+    if ev is None:
+        return f
+    x, y, _ = xy(lat, lon)
+    w = ev[np.clip(np.round(y).astype(int), 0, 2159), np.clip(np.round(x).astype(int), 0, 4319)].reshape(f.shape)
+    mixed = w.any(0)
+    out = f.copy()
+    out[:, mixed] = np.where(w[:, mixed], f[:, mixed], np.nan)
+    return out
+
+
 def grid(img, sea):
     """Percent ice for every sea cell within MAX_COLAT of a pole, NaN elsewhere."""
     out = np.full((180, 360), np.nan, np.float32)
@@ -113,8 +168,9 @@ def grid(img, sea):
             continue
         la = (lat + SUB[:, None, None]).repeat(4, 1).repeat(len(cols), 2)
         lo = (-179.5 + cols[None, None, :] + SUB[None, :, None]).repeat(4, 0)
-        f = sample(img, la.ravel(), lo.ravel()).reshape(4, 4, len(cols))
-        out[r, cols] = np.nanmean(f.reshape(16, -1), 0) * 100
+        f = sample(img, la.ravel(), lo.ravel()).reshape(16, len(cols))
+        f = coast_filter(f, la.reshape(16, -1), lo.reshape(16, -1))
+        out[r, cols] = np.nanmean(f, 0) * 100
     return out
 
 
@@ -150,7 +206,7 @@ def validate():
         for name, (la, lo) in POINTS.items():
             sl = la + np.repeat(np.linspace(-0.2, 0.2, 5), 5)
             sn = lo + np.tile(np.linspace(-0.2, 0.2, 5), 5)
-            v = sample(img, sl, sn)
+            v = coast_filter(sample(img, sl, sn).reshape(25, 1), sl.reshape(25, 1), sn.reshape(25, 1)).ravel()
             ours = float(np.nanmean(v) * 100) if np.isfinite(v).any() else None
             ref = mur_ice(d, la, lo)
             rows.append({"date": d.isoformat(), "place": name, "decoded_pct": None if ours is None else round(ours, 1),

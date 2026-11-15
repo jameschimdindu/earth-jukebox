@@ -70,7 +70,7 @@ def migrate():
         print(f"{rec}: {k} days moved to {dest}")
 
 
-ENC = {"sst": (-5.0, 0.2), "sst_anomaly": (-4.0, 0.04)}  # app encoding: value = round((x - lo) / step), 0..200
+ENC = {"sst": (-5.0, 0.2), "sst_anomaly": (-4.0, 0.04), "ice": (0.0, 1.0)}  # app encoding: value = round((x - lo) / step), 0..200
 
 
 def week_of(d):
@@ -123,7 +123,7 @@ def to_weeks(rec):
 # mockups/data/<record>/daily/<YYYY-MM>/<tile row>-<tile col>.bin.gz, uint8 (31 days x 30 x 30 cells), day d in slot d - 1,
 # the same encoding as the weekly file, 255 = no data. The app fetches only the tiles of the place it plays.
 TILE = 30
-DATA_DIR = {"sst": "sst", "sst_anomaly": "sst_anomaly"}
+DATA_DIR = {"sst": "sst", "sst_anomaly": "sst_anomaly", "ice": "ice"}
 
 
 def quantize(rec, grid):
@@ -425,9 +425,68 @@ def update_air():
 
 
 
+def ice_daily(limit=None):
+    """Round 77: sea ice, one note per day. Every decoded day is kept in pipeline/state/ice/weeks/<date>.npy.gz (so the
+    weekly file reuses it) and written into the daily tiles. `limit` caps how many new days one run decodes."""
+    import ice
+    html = subprocess.run(["curl", "-s", "-f", "-m", "120", "--retry", "5", ICE_LIST], capture_output=True, text=True, check=True).stdout
+    days = sorted({dt.datetime.strptime(m, "%Y%j").date() for m in re.findall(r"polar_sea_ice_sxs_no_date\.(\d{7})\.exr", html)})
+    if len(days) < 300:
+        raise RuntimeError(f"ice: NASA's frame list has only {len(days)} days; not updating")
+    (STATE / "ice").mkdir(parents=True, exist_ok=True)
+    wdir = STATE / "ice" / "weeks"
+    wdir.mkdir(parents=True, exist_ok=True)
+    done = daily_index("ice")
+    missing = [d for d in reversed(days) if d.isoformat() not in done]  # newest first
+    if limit:
+        missing = missing[:limit]
+    print(f"ice: NASA has {days[0]} to {days[-1]}; {len(missing)} days to decode now", flush=True)
+    sea = ice.sea_cells()
+
+    def one(d):
+        p = ice.frame(d)
+        g = ice.grid(ice.rgb(p), sea)
+        p.unlink()
+        save_day(wdir / f"{d.isoformat()}.npy.gz", g)
+        return d, g
+    new = {}
+    with ThreadPoolExecutor(4) as ex:
+        for d, g in ex.map(one, missing):
+            new[d] = quantize("ice", g)
+            if len(new) % 25 == 0:
+                write_months("ice", new)
+                save_daily_index("ice", daily_index("ice") | {x.isoformat() for x in new})
+                new = {}
+            print(f"   ice: decoded {d}", flush=True)
+    if new:
+        write_months("ice", new)
+        save_daily_index("ice", daily_index("ice") | {x.isoformat() for x in new})
+    update_ice()  # the weekly file, from the decoded days
+    daily_meta("ice", days)
+
+
+
+
+def rebuild_ice():
+    """Round 77: build the ever-water mask, decode every week again with the coast fix, then check against MUR."""
+    import ice
+    html = subprocess.run(["curl", "-s", "-f", "-m", "120", "--retry", "5", ICE_LIST], capture_output=True, text=True, check=True).stdout
+    days = sorted({dt.datetime.strptime(m, "%Y%j").date() for m in re.findall(r"polar_sea_ice_sxs_no_date\.(\d{7})\.exr", html)})
+    ice.build_ever_water(days)
+    wdir = STATE / "ice" / "weeks"
+    for p in wdir.glob("*.npy.gz"):
+        p.unlink()
+    save_daily_index("ice", set())
+    shutil.rmtree(HERE.parent / "mockups" / "data" / "ice" / "daily", ignore_errors=True)
+    ice_daily()
+    ice.validate()
+
+
+
+
 def ensure(arg):
     """A fresh machine (GitHub Actions) has no cache folders and no colour bar files."""
-    mods = {"sst": ["sst_exr"], "sst_anomaly": ["sst_anomaly"], "ice": ["ice"], "fire": ["fire"], "air": ["air"]}.get(arg, [])
+    mods = {"sst": ["sst_exr"], "sst_anomaly": ["sst_anomaly"], "ice": ["ice"], "rebuild_ice": ["ice"], "ice_daily": ["ice"], "fire": ["fire"], "air": ["air"]}.get(arg, [])
     for m in mods:
         mod = __import__(m)
         for d in ("CACHE", "OUT"):
@@ -449,6 +508,10 @@ if __name__ == "__main__":
         migrate()
     elif arg == "ice":
         update_ice()
+    elif arg == "ice_daily":
+        ice_daily(limit=60)
+    elif arg == "rebuild_ice":
+        rebuild_ice()
     elif arg == "migrate_ice":
         migrate_ice()
     elif arg == "air":

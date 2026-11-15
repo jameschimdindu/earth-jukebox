@@ -1,0 +1,29 @@
+# Rebuild sea ice with the coast fix (round 77): every day, one note per day, then a check against MUR. Started by hand;
+# it downloads about 730 frames of 56 MB (about 40 GB). The daily workflow keeps the result up to date afterwards.
+name: Rebuild sea ice
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Rebuild sea ice with the coast fix, then check against MUR
+        run: uv run --python 3.11 --with openexr --with numpy --with scipy python pipeline/rolling.py rebuild_ice
+      - name: Commit
+        run: |
+          git config user.name "earth-jukebox-data-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add mockups/data/ice pipeline/state/ice
+          if git diff --cached --quiet; then echo "No change."; else git commit -m "Sea ice rebuilt with the coast fix" && git pull --rebase -X theirs && git push; fi

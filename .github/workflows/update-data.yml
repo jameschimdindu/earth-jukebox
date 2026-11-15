@@ -33,7 +33,7 @@ jobs:
       - name: Sea ice
         id: ice
         continue-on-error: true
-        run: uv run --python 3.11 --with openexr --with numpy --with scipy python pipeline/rolling.py ice
+        run: uv run --python 3.11 --with openexr --with numpy --with scipy python pipeline/rolling.py ice_daily
       - name: Fires
         id: fire
         continue-on-error: true
