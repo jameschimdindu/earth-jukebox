@@ -749,7 +749,7 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
   updPlayer();setIcon();
   return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,
     sound:'then on the left, now on the right, each as three notes, then both notes together; a drum if now is warmer',
-    note:'The sound has just played. Now say the result in one or two sentences: both weeks, both values and difference_words. Do not give a cause. Then ask what next.'};}
+    note:'The sound has just played. Speak now: say the result in one or two sentences, with both weeks, both values and difference_words. Do not give a cause. Then ask what next.'};}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
 /* the logo: pause, play again, or go home */
 $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
@@ -829,7 +829,7 @@ async function locate(){if(!navigator.geolocation)return null;
 /* ================= client tools (mock data) ================= */
 const tools={
  then_and_now:async(a)=>{const r=thenAndNow(a||{});if(!r.error)await new Promise(ok=>setTimeout(ok,4600));return JSON.stringify(r);},
- offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}.`;},
+ offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}. You have not spoken yet: now say aloud what you wanted to say, and your question. Do not skip your turn.`;},
  list_records:()=>JSON.stringify(Object.entries(REC).map(([id,r])=>({id,name:r.name,unit:r.unit,data:hasReal(id)?'real weekly values from NASA':'sample values for now',then_and_now:hasReal(id)}))),
  set_record:({record_id})=>{if(!REC[record_id])return 'error: unknown record id. Call list_records.';cur.rec=record_id;if(cur.instMode!=='random')cur.inst=REC[record_id].inst;loadBright(record_id);if(isReal())setGlobeTex(record_id);syncOpts();refresh();const sp=samplePoint();
    return JSON.stringify({mock:!hasReal(record_id),data:hasReal(record_id)?`real weekly values, ${stepLabel(record_id,0,true)} to ${stepLabel(record_id,steps(record_id)-1,true)}`:'sample values',id:record_id,name:REC[record_id].name,unit:REC[record_id].unit,instrument:cur.inst,place:fullPlace(),water_name:REC[record_id].sea?sp.water:null,place_is_on_land:!!isLand(cur.lat,cur.lon)});},
