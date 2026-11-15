@@ -846,7 +846,7 @@ function playToday(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[rec]
     data:r.data,note:'The note has just played. Say the date and the value in one or two short sentences, then ask what next.'};}
 function todayUI(){if(conv){send(TODAY_ASK);return;}const r=playToday();if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}}
 /* Two places at once (round 74): the same record for two places, the first in the left ear, the second in the right */
-let twoTimer=null;
+let twoTimer=null,twoSay='';
 async function resolvePlace(q){const n=findPlace(q);if(n==='My place'){const h=myPlace();return{name:h.name,country:h.country,lat:h.lat,lon:h.lon};}
   if(n){const [lat,lon,country]=PLACES[n];return{name:n,country,lat,lon};}const g=await geocode(q);if(g.error||g.options)return g;return{name:g.name,country:g.country,lat:g.lat,lon:g.lon};}
 const nameOf2=p=>p.country?`${p.name}, ${p.country}`:p.name;
@@ -857,7 +857,7 @@ async function twoPlaces({place_a,place_b}={}){const rec=cur.rec;if(!hasReal(rec
   if(A.every(v=>v==null)||B.every(v=>v==null))return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no data near one of these places.`};
   clearInterval(trackTimer);trackTimer=null;clearInterval(twoTimer);stopSpinSound();TN.on=false;
   const L={az:-60,el:0},R={az:60,el:0};let i=0;setProg({type:'two',from:0,to:n-1,a:{name:nameOf2(a),slat:sa.lat,slon:sa.lon},b:{name:nameOf2(b),slat:sb.lat,slon:sb.lon}});
-  twoTimer=setInterval(()=>{if(i>=n){clearInterval(twoTimer);twoTimer=null;setIcon();return;}if(A[i]!=null)tone(noteOf(A[i]).hz,.4,L);if(B[i]!=null)setTimeout(()=>tone(noteOf(B[i]).hz,.4,R),120);trackI=i;updPlayer();i++;},hasReal(rec)?300:380);
+  twoTimer=setInterval(()=>{if(i>=n){clearInterval(twoTimer);twoTimer=null;setIcon();nudge(`(Note from the app, not from the person.) The two places have finished playing: ${nameOf2(a)} on the left, ${nameOf2(b)} on the right. Say this in your own words, in one or two short sentences, then ask what next: ${twoSay}`);return;}if(A[i]!=null)tone(noteOf(A[i]).hz,.4,L);if(B[i]!=null)setTimeout(()=>tone(noteOf(B[i]).hz,.4,R),120);trackI=i;updPlayer();i++;},hasReal(rec)?300:380);
   const vals=(S)=>S.filter(x=>x!=null).map(x=>val(x,rec));
   const va=vals(A),vb=vals(B),mean=v=>+(v.reduce((x,y)=>x+y,0)/v.length).toFixed(rec==='bio'?3:1);
   const nameOf=p=>p.country?`${p.name}, ${p.country}`:p.name,ma=mean(va),mb=mean(vb),d=+(ma-mb).toFixed(rec==='bio'?3:1);
@@ -865,7 +865,7 @@ async function twoPlaces({place_a,place_b}={}){const rec=cur.rec;if(!hasReal(rec
   $('#srStatus').textContent=`Two places: ${nameOf(a)} on the left, ${nameOf(b)} on the right. Average ${ma} and ${mb} ${REC[rec].unit}.`;updPlayer();setIcon();
   return{record:REC[rec].name,left:nameOf(a),right:nameOf(b),left_water:REC[rec].sea?sa.water:null,right_water:REC[rec].sea?sb.water:null,unit:REC[rec].unit,
     notes:n,one_note_is:noteUnit(rec),from:stepLabel(rec,0,true),to:stepLabel(rec,n-1,true),left_average:ma,right_average:mb,
-    say:`${nameOf(a)} is on the left and ${nameOf(b)} on the right. On average, ${d===0?'they are the same':(temp?`${hi} is ${Math.abs(d)} degrees ${rec==='ssta'?'further above normal':'warmer'}`:`${hi} has ${diffSay(rec,Math.abs(d))}`)}.`,
+    say:(twoSay=`${nameOf(a)} is on the left and ${nameOf(b)} on the right. On average, ${d===0?'they are the same':(temp?`${hi} is ${Math.abs(d)} degrees ${rec==='ssta'?'further above normal':'warmer'}`:`${hi} has ${diffSay(rec,Math.abs(d))}`)}.`),
     note:'The two tracks play now, together. Say one short line, then stay quiet. When the person asks, say `say` in your own words.'};}
 function twoPlacesUI(){if(conv){send('Compare this place with My place, both at once.');return;}twoPlaces({}).then(r=>{if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}});}
 /* Moments (round 74): a playlist of three real moments at this place, picked from the data: the highest note, the lowest note,
@@ -882,9 +882,8 @@ function playMoments(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[re
   const out=pick.map(([i,name],k)=>{const r=readingFor(rec,cur.lat,cur.lon,i);momentTimers.push(setTimeout(()=>{tone(r.frequency_hz,.9,posOf(cur.lat,cur.lon));if(r.drum)drum();setProg({type:'year',i});updPlayer();},k*1300));
     return{moment:name,when:stepLabel(rec,i,true),value:r.value,unit:r.unit,value_words:r.value_words,...(r.forecast?{forecast:r.forecast}:{})};});
   $('#srStatus').textContent=`Moments at ${fullPlace()}: `+out.map(m=>`${m.moment}, ${m.when}, ${m.value} ${m.unit}`).join('; ')+'.';
-  setTimeout(()=>{if(conv)nudge('(Note from the app, not from the person.) The three moments have played. Say them now, one short sentence each, then ask what next.');},pick.length*1300+600);
   return{place:fullPlace(),water_name:sp.water,record:REC[rec].name,moments:out,searched:`${stepLabel(rec,0,true)} to ${stepLabel(rec,steps(rec)-1,true)}`,
-    note:'The moments play now, in this order, about a second apart. Say one short line, then wait: the app tells you when they have played.'};}
+    note:'The moments have just played, in this order. Say them now, one short sentence each, then ask what next in one short question. Do not mention moments that are not in the list.'};}
 function momentsUI(){if(conv){send('Play the moments for this place.');return;}const r=playMoments();if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}}
 function thenAndNowUI(){if(!canThen(cur.rec)){const m=hasReal(cur.rec)?`Then and now needs a year of data. ${REC[cur.rec].name} covers about 15 days.`:`Then and now needs real data. ${REC[cur.rec].name} still uses sample values.`;$('#srStatus').textContent=m;if(!conv)caption('juke',m);return;}
   if(conv){send(THEN_ASK);return;}thenAndNow({});}
@@ -988,7 +987,7 @@ async function locate(){if(!navigator.geolocation)return null;
 /* ================= client tools (mock data) ================= */
 const tools={
  play_today:()=>JSON.stringify(playToday()),
- play_moments:()=>JSON.stringify(playMoments()),
+ play_moments:async()=>{const r=playMoments();if(!r.error)await new Promise(ok=>setTimeout(ok,r.moments.length*1300+300));return JSON.stringify(r);},
  two_places:async(a)=>JSON.stringify(await twoPlaces(a||{})),
  then_and_now:async(a)=>{const r=thenAndNow(a||{});if(!r.error)await new Promise(ok=>setTimeout(ok,4600));return JSON.stringify(r);},
  offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}. You have not spoken yet: now say aloud what you wanted to say, and your question. Do not skip your turn.`;},
