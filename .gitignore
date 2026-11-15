@@ -7,3 +7,5 @@
 .vercel
 node_modules
 .DS_Store
+pipeline/cache/
+pipeline/out/
