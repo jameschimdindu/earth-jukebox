@@ -4,5 +4,6 @@ Disallow: /health-twin.html
 Disallow: /jukebox.html
 Disallow: /orb-pins.html
 Disallow: /orb-test.html
+Disallow: /og/
 
 Sitemap: https://heartheearth.vercel.app/sitemap.xml
