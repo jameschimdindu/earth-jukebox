@@ -176,6 +176,18 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #player .yr{font-size:48px;line-height:56px;font-weight:300;letter-spacing:-.03em;margin-bottom:16px;transition:color .3s var(--ease-out)}
 #player .yr.flash{color:var(--accent)}
 #player .ln{color:var(--mute)}#player .ln b{color:var(--ink);font-weight:500}
+/* record, instrument and place in the player are buttons: a click opens a short menu (round 62) */
+#player .fld{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:inherit;text-decoration:underline dotted var(--w16);text-decoration-thickness:1px;text-underline-offset:5px;transition:text-decoration-color .16s var(--ease-out),color .16s var(--ease-out)}
+#player .fld:hover,#player .fld[aria-expanded=true]{color:var(--ink);text-decoration-color:currentColor}
+#fieldMenu{position:fixed;z-index:40;right:auto;top:auto;width:296px;max-height:min(440px,calc(100vh - 32px));overflow:auto;transform-origin:top left}
+#fieldMenu .opt{min-height:40px;padding:8px 12px}
+#fieldMenu .hd{padding:12px 12px 4px;color:var(--mute);font-size:12px;line-height:16px}
+.psearch{padding:8px 12px}
+.psearch input{width:100%;height:40px;padding:0 12px;border:0;border-radius:99px;background:var(--black);color:var(--ink);font:inherit;font-size:16px;box-shadow:inset 0 0 0 1px var(--line)}
+.psearch input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.psearch .msg{color:var(--mute);font-size:12px;line-height:16px;padding:8px 0 0}
+#source .dyk .src{display:inline-flex;gap:4px;align-items:center;margin-top:8px;color:var(--mute);font-size:12px;line-height:16px}
+#source .dyk .src svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
 #player .val{color:var(--ink);margin-top:8px}
 #player .prog{height:2px;background:var(--line);margin:12px 0;overflow:hidden}#player .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s linear}
 #player .ctl{display:flex;gap:8px;align-items:center}
@@ -333,8 +345,8 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
 <section class="side-info" id="playerWrap" hidden aria-label="Now playing">
   <div id="player">
     <div class="yr" id="pYear">Ready</div>
-    <div class="ln" id="pRec"></div>
-    <div class="ln" id="pPlace"></div>
+    <div class="ln" id="pRec"><button type="button" class="fld" id="fRec" aria-haspopup="dialog" aria-expanded="false"><b id="fRecT"></b></button>, on <button type="button" class="fld" id="fInst" aria-haspopup="dialog" aria-expanded="false"></button></div>
+    <div class="ln" id="pPlace"><button type="button" class="fld" id="fPlace" aria-haspopup="dialog" aria-expanded="false"></button></div>
     <div class="ln" id="pWater"></div>
     <div class="val" id="pVal"></div>
     <div class="prog" aria-hidden="true"><i id="pBar"></i></div>
@@ -343,8 +355,10 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
   </div>
 </section>
 <section class="side-info" id="sourceWrap" hidden aria-label="The record">
-  <div id="source"><div class="dyk" id="sDyk"><div class="t">Did you know?</div><p id="sFact"></p></div><div id="sPlay" hidden><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div></div>
+  <div id="source"><div class="dyk" id="sDyk"><div class="t">Did you know?</div><p id="sFact"></p><a class="src" id="sFactSrc" target="_blank" rel="noopener"></a></div><div id="sPlay" hidden><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div></div>
 </section>
+
+<div id="fieldMenu" class="drop" role="dialog" hidden></div>
 
 <div id="dock" hidden>
   <div id="shortcuts" role="group" aria-label="Shortcuts"></div>
@@ -736,11 +750,12 @@ const canResume=()=>prog&&((prog.type==='track'&&trackTimer&&trackPaused)||(prog
 function setProg(p){prog={rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,...p};}
 function setIcon(){const p=playingSomething();$('#pIcon').innerHTML=p?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4v16l13-8z"/>';$('#pPlay').setAttribute('aria-label',p?'Pause':'Play');
   $('#logoBtn').setAttribute('aria-label',p?'Pause':canResume()?'Play again':'Go to My place');$('#logoBtn').title=p?'Pause (Space)':canResume()?'Play again (Space)':'Go to My place (H)';}
-function updPlayer(){const sp=samplePoint();$('#pRec').innerHTML=`<b>${REC[cur.rec].name}</b>, on ${cur.inst}`;$('#pPlace').textContent=fullPlace();
+function setFld(id,text,label){const b=$(id);const t=id==='#fRec'?$('#fRecT'):b;if(t.textContent!==text)t.textContent=text;b.setAttribute('aria-label',`${label}: ${text}. Change`);}
+function updPlayer(){const sp=samplePoint();setFld('#fRec',REC[cur.rec].name,'Record');setFld('#fInst',cur.inst,'Instrument');setFld('#fPlace',fullPlace(),'Place');
   $('#pWater').textContent=REC[cur.rec].sea&&sp.water&&isLand(cur.lat,cur.lon)?`Sea: ${sp.water}`:'';$('#pVal').textContent='';
   if(!prog){$('#pYear').textContent='Ready';$('#pBar').style.width='0';return;}
   if(prog.type==='then'){const s=realSeries(cur.rec,sp.lat,sp.lon);$('#pYear').textContent='Then and now';$('#pVal').textContent=s?`${stepLabel(cur.rec,prog.j)}: ${cur.rec==='ssta'&&s.t[prog.j]>0?'+':''}${s.t[prog.j]} °C, ${stepLabel(cur.rec,prog.i)}: ${cur.rec==='ssta'&&s.t[prog.i]>0?'+':''}${s.t[prog.i]} °C`:'';$('#pBar').style.width='100%';return;}
-  if(prog.type==='spin'){$('#pYear').textContent='Spinning';$('#pPlace').textContent=`Around the world at ${Math.abs(prog.lat).toFixed(0)}° ${prog.lat>=0?'north':'south'}, ${prog.dir>0?'east':'west'}`;$('#pWater').textContent='';$('#pBar').style.width='100%';return;}
+  if(prog.type==='spin'){$('#pYear').textContent='Spinning';setFld('#fPlace',`Around the world at ${Math.abs(prog.lat).toFixed(0)}° ${prog.lat>=0?'north':'south'}, ${prog.dir>0?'east':'west'}`,'Place');$('#pWater').textContent='';$('#pBar').style.width='100%';return;}
   const x=currentX();$('#pVal').textContent=x==null?'No sea data here this week':valueLine(x);
   $('#pYear').textContent=stepLabel(cur.rec,prog.type==='year'?prog.i:Math.max(prog.from,trackI-1));$('#pBar').style.width=prog.type==='year'?'100%':((trackI-prog.from)/Math.max(1,prog.to-prog.from+1)*100)+'%';}
 function surprise(){if(cur.instMode!=='random')return;const c=INSTRUMENTS.filter(i=>i!==cur.inst);cur.inst=c[Math.floor(Math.random()*c.length)];syncOpts();}
@@ -815,7 +830,9 @@ async function geocode(q){const [name,cc]=(q||'').split(',').map(x=>x.trim());if
 /* after a drag, name the point with the same reverse geocoder as My place (land only). The sea keeps its ocean name */
 async function nameLand(lat,lon){try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);const j=await r.json();
   const n=j.city||j.locality||'';return n&&!/ocean|sea$/i.test(n)?{name:n,country:j.countryName||''}:null;}catch(e){return null;}}
-function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
+const recentPlaces=[];
+function rememberPlace(name,lat,lon,country){if(!country||/^Land at/.test(name))return;const i=recentPlaces.findIndex(p=>p.name===name&&p.country===country);if(i>=0)recentPlaces.splice(i,1);recentPlaces.unshift({name,lat,lon,country});recentPlaces.length=Math.min(recentPlaces.length,4);}
+function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}rememberPlace(name,lat,lon,country);cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
 function goHome(tell){const h=myPlace();goPlace(h.name,h.lat,h.lon,h.country);cur.isHome=true;syncOpts();if(tell&&conv)conv.sendContextualUpdate(`The person went back to their own place, ${fullPlace()}.`);}
 function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);syncURL();ensureSeaName();}
 /* look up the real name of the water we listen to, then redraw. Waits at most 2.5 s */
@@ -1014,7 +1031,9 @@ function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textCon
   $('#srcCap').textContent=r.map?`The ring marks ${fullPlace()}. Its position is close, not exact, in this prototype.`:'This picture is a view from above the pole, so the place is not marked.';
   const x=currentX();$('#srcNow').textContent=x==null?`NASA's picture has no ${REC[cur.rec].short} data near ${fullPlace()}.`:`At ${fullPlace()}${sp.water&&isLand(cur.lat,cur.lon)?`, sea: ${sp.water}`:''}, you hear ${pitchWords(x)} on ${cur.inst}. That is ${valueLine(x,false)}.`;
   if(!$('#menu').hidden&&menuView==='src'){const m=$('#menu');m.style.height=$('#mv-src').offsetHeight+'px';}
-  $('#sTitle').textContent=r.name;$('#sMeta').textContent=`NASA SVS ${r.svs}`;if(factFor!==cur.rec){factFor=cur.rec;$('#sFact').textContent=nextFact();}$('#sImg').src=r.img;$('#sImg').alt=`NASA picture: ${r.name}`;$('#sLink').href=`${SVS}${r.svs}/`;placeMk('#sMk',r);}
+  $('#sTitle').textContent=r.name;$('#sMeta').textContent=`NASA SVS ${r.svs}`;if(factFor!==cur.rec){factFor=cur.rec;$('#sFact').textContent=nextFact();}
+  /* every fact comes from the record's NASA page, so it links there */
+  $('#sFactSrc').href=`${SVS}${r.svs}/`;$('#sFactSrc').innerHTML=`Source: NASA SVS ${r.svs}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"/></svg><span class="sr"> (opens NASA's page)</span>`;$('#sImg').src=r.img;$('#sImg').alt=`NASA picture: ${r.name}`;$('#sLink').href=`${SVS}${r.svs}/`;placeMk('#sMk',r);}
 function placeMk(sel,r){const mk=$(sel);if(r.map){mk.hidden=false;mk.style.left=((cur.lon+180)/360*100)+'%';mk.style.top=((90-cur.lat)/180*100)+'%';}else mk.hidden=true;}
 
 /* ================= the Options tray: tabs in order of importance ================= */
@@ -1037,11 +1056,44 @@ function segRow(id,key,label,choices,get,set){const w=document.createElement('di
   choices.forEach(([n,v])=>{const b=document.createElement('button');b.type='button';b.setAttribute('role','radio');b.textContent=n;b.dataset.v=v;b.onclick=()=>{set(v);syncOpts();};g.appendChild(b);});
   g.addEventListener('keydown',e=>{const bs=[...g.children];const i=bs.indexOf(document.activeElement);let j=null;if(e.key==='ArrowRight')j=Math.min(bs.length-1,i+1);if(e.key==='ArrowLeft')j=Math.max(0,i-1);if(j!==null){e.preventDefault();e.stopPropagation();bs[j].click();bs[j].focus();}});g._get=get;tp(id).appendChild(w);}
 const note=(id,text)=>{const p=document.createElement('p');p.className='note';p.textContent=text;tp(id).appendChild(p);};
+/* ================= place search (player menu and Options) and the player's field menus (round 62) =================
+   Open-Meteo's place search, up to 6 matches. Choosing one moves the globe and tells Juke, like a place picked in Options. */
+async function searchPlaces(q){try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=10&language=en&format=json`);const j=await r.json();
+  return (j.results||[]).filter(x=>/^(PPL|ADM|PCL)/.test(x.feature_code||'PPL')).slice(0,6).map(x=>({name:x.name,country:x.country||'',area:x.admin1||'',lat:x.latitude,lon:x.longitude}));}catch(_){return null;}}
+function choosePlace(p){goPlace(p.name,p.lat,p.lon,p.country);ensureSeaName();syncOpts();conv&&conv.sendContextualUpdate(`The person moved the globe to ${fullPlace()}.`);}
+function placeSearch(host,done,id){const w=document.createElement('div');w.className='psearch';
+  w.innerHTML=`<label class="sr" for="${id}">Search for any place</label><input id="${id}" type="search" placeholder="Search any place" autocomplete="off"><p class="msg" aria-live="polite"></p><div class="res"></div>`;
+  const inp=w.querySelector('input'),msg=w.querySelector('.msg'),res=w.querySelector('.res');let t=null,n=0;
+  const run=async()=>{const q=inp.value.trim();res.innerHTML='';if(q.length<2){msg.textContent='';return;}const k=++n;msg.textContent='Searching…';const l=await searchPlaces(q);if(k!==n)return;
+    if(!l){msg.textContent='The place search is not answering. Try again.';return;}msg.textContent=l.length?`${l.length} ${l.length===1?'place':'places'} found`:`No place called ${q} was found.`;
+    l.forEach(p=>{const b=document.createElement('button');b.type='button';b.className='opt';b.innerHTML=`<span>${p.name}<small>${[p.area,p.country].filter(Boolean).join(', ')}</small></span>`;b.onclick=()=>{choosePlace(p);inp.value='';res.innerHTML='';msg.textContent='';done&&done();};res.appendChild(b);});};
+  inp.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(run,300);});
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();clearTimeout(t);const f=res.querySelector('button');f?f.click():run();}if(e.key==='ArrowDown'){const f=res.querySelector('button');if(f){e.preventDefault();e.stopPropagation();f.focus();}}});
+  host.appendChild(w);return inp;}
+let fmFor=null;
+function fmItem(label,small,on,act){const b=document.createElement('button');b.type='button';b.className='opt';b.setAttribute('aria-pressed',!!on);
+  b.innerHTML=`<span>${label}${small?`<small>${small}</small>`:''}</span><svg class="ck" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>`;b.onclick=()=>{act();closeFieldMenu(true);};return b;}
+function openFieldMenu(kind){const m=$('#fieldMenu'),btn=$({rec:'#fRec',inst:'#fInst',place:'#fPlace'}[kind]);if(fmFor===kind&&!m.hidden){closeFieldMenu(true);return;}closeFieldMenu(false);fmFor=kind;m.innerHTML='';
+  const hd=t=>{const d=document.createElement('div');d.className='hd';d.textContent=t;m.appendChild(d);};
+  if(kind==='rec'){m.setAttribute('aria-label','Choose a record');Object.entries(REC).forEach(([k,r])=>m.appendChild(fmItem(r.name,hasReal(k)?'Real NASA values, week by week':'Sample values for now',cur.rec===k,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);})));}
+  if(kind==='inst'){m.setAttribute('aria-label','Choose an instrument');INSTRUMENTS.forEach(n=>m.appendChild(fmItem(n[0].toUpperCase()+n.slice(1),'',cur.instMode!=='random'&&cur.inst===n,()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
+    m.appendChild(fmItem('Surprise me','A different instrument for each track',cur.instMode==='random',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);}));}
+  if(kind==='place'){m.setAttribute('aria-label','Choose a place');placeSearch(m,()=>closeFieldMenu(true),'fmSearch');const h=myPlace();
+    m.appendChild(fmItem('My place',h.fallback?'Vaasa, Finland, used when your location is not shared':fullPlace({place:h.name,country:h.country}),cur.isHome,()=>goHome(true)));
+    const rec=recentPlaces.filter(p=>!(cur.isHome&&p.name===h.name));if(rec.length){hd('Recent');rec.forEach(p=>m.appendChild(fmItem(p.name,p.country,!cur.isHome&&cur.place===p.name&&cur.country===p.country,()=>choosePlace(p))));}}
+  const r=btn.getBoundingClientRect(),W=296;m.style.left=Math.max(16,Math.min(innerWidth-W-16,r.left))+'px';m.style.top=Math.min(r.bottom+8,innerHeight-160)+'px';
+  btn.setAttribute('aria-expanded','true');show(m);const first=m.querySelector('input')||m.querySelector('[aria-pressed=true]')||m.querySelector('button');first&&first.focus();}
+function closeFieldMenu(focusBack){const m=$('#fieldMenu');if(m.hidden&&!fmFor)return false;const btn=fmFor&&$({rec:'#fRec',inst:'#fInst',place:'#fPlace'}[fmFor]);hide(m,true);btn&&btn.setAttribute('aria-expanded','false');if(focusBack&&btn)btn.focus();fmFor=null;return true;}
+$('#fRec').onclick=()=>openFieldMenu('rec');$('#fInst').onclick=()=>openFieldMenu('inst');$('#fPlace').onclick=()=>openFieldMenu('place');
+$('#fieldMenu').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeFieldMenu(true);return;}
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){const items=[...$('#fieldMenu').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(i<0)return;e.preventDefault();
+    const j=e.key==='ArrowDown'?Math.min(items.length-1,i+1):i-1;if(j<0){const inp=$('#fieldMenu input');(inp||items[0]).focus();}else items[j].focus();}});
+addEventListener('pointerdown',e=>{if(fmFor&&!e.target.closest('#fieldMenu,.fld'))closeFieldMenu(false);},true);
 /* Records */
 note('records','Pictures from the NASA Earth Information Center. Pick one to hear it.');
 Object.entries(REC).forEach(([k,r])=>tp('records').appendChild(opt('rec',k,r.name,`Plays on ${r.inst}`,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);},r.img)));
 /* Place */
-tp('place').appendChild(opt('place','My place','My place','',()=>goHome(true)));sep('place');
+tp('place').appendChild(opt('place','My place','My place','',()=>goHome(true)));placeSearch(tp('place'),null,'optSearch');sep('place');
 Object.entries(PLACES).forEach(([n,v])=>tp('place').appendChild(opt('place',n,n,v[2],()=>{goPlace(n);conv&&conv.sendContextualUpdate(`The person moved the globe to ${fullPlace()}.`);})));
 /* Instrument */
 INSTRUMENTS.forEach(n=>tp('instrument').appendChild(opt('inst',n,n[0].toUpperCase()+n.slice(1),'',()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
@@ -1093,7 +1145,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(e.target.matches?.("input,select")){if(k==='escape')e.target.blur();return;}
   if(!$('#gate').hidden&&!started){if(k==='t'){e.preventDefault();$('#startTyping').click();}return;}
   if(k==='escape'){if(closeMenu(true)){$('#moreBtn').focus();return;}closePanels(true);return;}
-  if(e.target.closest('#opts,#menu')&&!['o','n','?','/'].includes(k))return;
+  if(e.target.closest('#opts,#menu,#fieldMenu')&&!['o','n','?','/'].includes(k))return;
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   if(k==='o'){trayOpen()?closePanels(true):openPanel('#opts',true);}
   if(k==='n')openMenu('src',true);
