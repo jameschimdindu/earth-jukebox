@@ -775,7 +775,8 @@ const dailyCells=new Map(),dailyTiles=new Map(),dailyWait=new Map();
 function ensureDaily(rec,lat,lon){if(!isDaily(rec))return Promise.resolve();const cell=dataCell(rec,lat,lon);if(!cell)return Promise.resolve();const key=`${rec}:${cell.r},${cell.c}`;
   if(dailyCells.has(key))return Promise.resolve();if(dailyWait.has(key))return dailyWait.get(key);
   const D=REAL[rec].meta.daily,tr=Math.floor(cell.r/D.tile_deg),tc=Math.floor(cell.c/D.tile_deg),dir=REAL_SRC[rec].dir;
-  const p=(async()=>{const months={};await Promise.all(D.months.map(async m=>{const tk=`${rec}:${m}:${tr}-${tc}`;if(!dailyTiles.has(tk)){let b=new Uint8Array(await(await fetch(`${dir}/daily/${m}/${tr}-${tc}.bin.gz`)).arrayBuffer());
+  const p=(async()=>{const months={};await Promise.all(D.months.map(async m=>{const tk=`${rec}:${m}:${tr}-${tc}`;if(!dailyTiles.has(tk)){const[s0,len]=D.ranges[m][tr*(360/D.tile_deg)+tc],res=await fetch(`${dir}/daily/${m}.bin`,{headers:{Range:`bytes=${s0}-${s0+len-1}`}});if(!res.ok)throw new Error(`daily ${m} ${res.status}`);
+      let b=new Uint8Array(await res.arrayBuffer());if(res.status===200&&b.length!==len)b=b.slice(s0,s0+len);
       if(b[0]===0x1f&&b[1]===0x8b)b=new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());dailyTiles.set(tk,b);}months[m]=dailyTiles.get(tk);}));
     const n=dayCount(rec),t=[],rr=cell.r%D.tile_deg,cc=cell.c%D.tile_deg,T=D.tile_deg;
     for(let i=0;i<n;i++){const d=dayDate(rec,i),m=d.toISOString().slice(0,7),a=months[m];t.push(a?realDec(rec,a[(d.getUTCDate()-1)*T*T+rr*T+cc]):null);}

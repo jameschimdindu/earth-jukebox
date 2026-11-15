@@ -119,9 +119,10 @@ def to_weeks(rec):
 
 # ---------------- daily notes for the two sea records (round 76) ----------------
 # The app plays one note per day for sea surface temperature and its anomaly. A browser must not download every day of
-# the world (about 25 MB per record), so the daily values are cut into 30 x 30 degree tiles, one file per month:
-# mockups/data/<record>/daily/<YYYY-MM>/<tile row>-<tile col>.bin.gz, uint8 (31 days x 30 x 30 cells), day d in slot d - 1,
-# the same encoding as the weekly file, 255 = no data. The app fetches only the tiles of the place it plays.
+# the world (about 25 MB per record), so the daily values are cut into 30 x 30 degree tiles. Round 78: the 72 tiles of a
+# month are gzipped one by one and packed into one file, mockups/data/<record>/daily/<YYYY-MM>.bin, to stay under
+# Vercel's file limit. Each tile is uint8 (31 days x 30 x 30 cells), day d in slot d - 1, the same encoding as the weekly
+# file, 255 = no data. meta.json daily.ranges gives each tile's bytes; the app fetches only its tile (HTTP range request).
 TILE = 30
 DATA_DIR = {"sst": "sst", "sst_anomaly": "sst_anomaly", "ice": "ice"}
 
@@ -134,27 +135,80 @@ def quantize(rec, grid):
     return q
 
 
-def write_months(rec, days_grids):
-    """days_grids: {date: quantized 180 x 360 grid}. Updates the month tile files that these days fall in."""
-    base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
-    by_month = {}
-    for d, g in days_grids.items():
-        by_month.setdefault(f"{d:%Y-%m}", []).append((d, g))
-    for month, items in by_month.items():
-        mdir = base / month
-        mdir.mkdir(parents=True, exist_ok=True)
-        full = np.full((31, 180, 360), 255, np.uint8)
-        for tr in range(180 // TILE):  # read what is already there
+def month_path(rec, month):
+    return HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily" / f"{month}.bin"
+
+
+def offsets_path(rec):
+    return STATE / rec / "daily_offsets.json"
+
+
+def load_offsets(rec):
+    import json
+    p = offsets_path(rec)
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+def read_month(rec, month, offs):
+    """The whole month (31 x 180 x 360) from its packed file, or empty (255) if there is none."""
+    full = np.full((31, 180, 360), 255, np.uint8)
+    p = month_path(rec, month)
+    if p.exists() and month in offs:
+        b = p.read_bytes()
+        for k, (start, size) in enumerate(offs[month]):
+            tr, tc = divmod(k, 360 // TILE)
+            full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE] = np.frombuffer(gzip.decompress(b[start:start + size]), np.uint8).reshape(31, TILE, TILE)
+    else:  # round 76 layout: one small file per tile (read once, while moving to packed files)
+        mdir = p.with_suffix("")
+        for tr in range(180 // TILE):
             for tc in range(360 // TILE):
                 f = mdir / f"{tr}-{tc}.bin.gz"
                 if f.exists():
                     full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE] = np.frombuffer(gzip.decompress(f.read_bytes()), np.uint8).reshape(31, TILE, TILE)
+    return full
+
+
+def write_month(rec, month, full, offs):
+    """Round 78: one file per month. The 72 tiles (30 x 30 degrees, row by row) are gzipped one after another; their
+    byte ranges go into meta.json, and the app fetches only its tile's range."""
+    import json
+    parts, pos, ranges = [], 0, []
+    for tr in range(180 // TILE):
+        for tc in range(360 // TILE):
+            z = gzip.compress(np.ascontiguousarray(full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE]).tobytes(), 9)
+            parts.append(z)
+            ranges.append([pos, len(z)])
+            pos += len(z)
+    p = month_path(rec, month)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"".join(parts))
+    offs[month] = ranges
+    shutil.rmtree(p.with_suffix(""), ignore_errors=True)  # the old folder of 72 small files
+    offsets_path(rec).parent.mkdir(parents=True, exist_ok=True)
+    offsets_path(rec).write_text(json.dumps(offs))
+
+
+def write_months(rec, days_grids):
+    """days_grids: {date: quantized 180 x 360 grid}. Updates the month files that these days fall in."""
+    by_month = {}
+    for d, g in days_grids.items():
+        by_month.setdefault(f"{d:%Y-%m}", []).append((d, g))
+    offs = load_offsets(rec)
+    for month, items in by_month.items():
+        full = read_month(rec, month, offs)
         for d, g in items:
             full[d.day - 1] = g
-        for tr in range(180 // TILE):
-            for tc in range(360 // TILE):
-                t = np.ascontiguousarray(full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE])
-                (mdir / f"{tr}-{tc}.bin.gz").write_bytes(gzip.compress(t.tobytes(), 9))
+        write_month(rec, month, full, offs)
+
+
+def pack(rec):
+    """Once (round 78): the round 76/77 folders of 72 small files per month become one file per month."""
+    base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
+    offs = load_offsets(rec)
+    months = sorted(d.name for d in base.iterdir() if d.is_dir())
+    for m in months:
+        write_month(rec, m, read_month(rec, m, offs), offs)
+    print(f"{rec}: packed {len(months)} months")
 
 
 def daily_index(rec):
@@ -187,18 +241,24 @@ def daily_meta(rec, days):
     base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
     have = sorted(d for d in daily_index(rec) if d >= days[0].isoformat())
     save_daily_index(rec, set(have))
-    for mdir in base.iterdir():
-        if mdir.is_dir() and mdir.name < f"{days[0]:%Y-%m}":
-            shutil.rmtree(mdir)
+    offs = load_offsets(rec)
+    for f in list(base.glob("*.bin")):
+        if f.stem < f"{days[0]:%Y-%m}":
+            f.unlink()
+            offs.pop(f.stem, None)
+    for d in [d for d in base.iterdir() if d.is_dir()]:
+        shutil.rmtree(d)  # nothing of the old layout may stay
+    offsets_path(rec).write_text(json.dumps(offs))
     first, last = dt.date.fromisoformat(have[0]), dt.date.fromisoformat(have[-1])
     every = {(first + dt.timedelta(days=k)).isoformat() for k in range((last - first).days + 1)}
     meta_p = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "meta.json"
     meta = json.loads(meta_p.read_text())
-    meta["daily"] = {"first": first.isoformat(), "last": last.isoformat(), "tile_deg": TILE,
-                     "months": sorted(m.name for m in base.iterdir() if m.is_dir()), "missing_days": sorted(every - set(have)),
-                     "layout": "daily/<YYYY-MM>/<tile row>-<tile col>.bin.gz, uint8 31 x 30 x 30, day d in slot d - 1, same encoding as weekly"}
+    months = sorted(f.stem for f in base.glob("*.bin"))
+    meta["daily"] = {"first": first.isoformat(), "last": last.isoformat(), "tile_deg": TILE, "months": months,
+                     "missing_days": sorted(every - set(have)), "ranges": {m: offs[m] for m in months},
+                     "layout": "daily/<YYYY-MM>.bin: 72 gzipped tiles (30 x 30 degrees, row by row from 90 N, 180 W), each uint8 31 days x 30 x 30, day d in slot d - 1, same encoding as weekly; ranges[month][tile] = [byte start, byte length]"}
     meta_p.write_text(json.dumps(meta, indent=1))
-    print(f"{rec}: daily {first} to {last}, {len(have)} days")
+    print(f"{rec}: daily {first} to {last}, {len(have)} days, {len(months)} month files")
 
 
 
@@ -524,6 +584,11 @@ if __name__ == "__main__":
         update_air()
     elif arg == "fire":
         update_fire()
+    elif arg == "pack":
+        for r in ("sst", "sst_anomaly", "ice"):
+            pack(r)
+            import json as _j
+            daily_meta(r, sorted(dt.date.fromisoformat(x) for x in daily_index(r)))
     elif arg == "build_daily":
         build_daily("sst")
         build_daily("sst_anomaly")
