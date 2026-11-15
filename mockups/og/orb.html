@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>Sharing image: orb</title>
+<style>
+@font-face{font-family:Geist;src:url(../fonts/geist/Geist-Variable.woff2) format('woff2');font-weight:100 900}
+html,body{margin:0;width:1200px;height:630px;overflow:hidden;background:#0b0807}
+/* the real app, 1760 x 1000 so its centred orb has its normal size, moved so the orb centre sits at x 880, y 315 */
+iframe{position:absolute;left:0;top:-185px;width:1760px;height:1000px;border:0}
+.t{position:absolute;left:72px;z-index:2;color:rgb(243 231 216)}
+.logo{top:56px;display:flex;align-items:center;gap:12px;font:500 17px/24px Geist;letter-spacing:3px}
+.logo b{font-weight:600}
+h1{top:212px;margin:0;font:300 72px/80px Geist;letter-spacing:-.045em}
+h1 em{font-style:normal;color:rgb(95 208 224)}
+</style>
+</head>
+<body>
+<iframe id="app" src="../voice-native.html" tabindex="-1" aria-hidden="true"></iframe>
+<div class="t logo"><svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 14v4m6-10v16m6-21v26m6-20v14m6-10v6" stroke="rgb(95 208 224)" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg><span><b>EARTH</b> JUKEBOX</span></div>
+<h1 class="t">Close your eyes.<br>Hear the <em>Earth</em>.</h1>
+<script>
+/* show the app's line globe whole (as after Start), without its header, heading or buttons */
+const f=document.getElementById('app');f.onload=()=>{const d=f.contentDocument;const s=d.createElement('style');
+  s.textContent='header,#gate,#dock,#captions,#playerWrap,#sourceWrap,.pinLabel{display:none!important}';d.head.appendChild(s);
+  f.contentWindow.__jb.reveal();};
+</script>
+</body>
+</html>
