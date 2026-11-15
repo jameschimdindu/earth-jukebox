@@ -182,12 +182,12 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #fieldMenu{position:fixed;z-index:40;right:auto;top:auto;width:296px;max-height:min(440px,calc(100vh - 32px));overflow:auto;transform-origin:top left}
 #fieldMenu .opt{min-height:40px;padding:8px 12px}
 #fieldMenu .hd{padding:12px 12px 4px;color:var(--mute);font-size:12px;line-height:16px}
-.psearch{padding:8px 12px}
+.psearch{padding:12px}
 .psearch input{width:100%;height:40px;padding:0 12px;border:0;border-radius:99px;background:var(--black);color:var(--ink);font:inherit;font-size:16px;box-shadow:inset 0 0 0 1px var(--line)}
 .psearch input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .psearch .msg{color:var(--mute);font-size:12px;line-height:16px;padding:8px 0 0}
-#source .dyk .src{display:inline-flex;gap:4px;align-items:center;margin-top:8px;color:var(--mute);font-size:12px;line-height:16px}
-#source .dyk .src svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
+.psearch .msg:empty{display:none}
+#source .dyk .src{margin-top:4px}
 #player .val{color:var(--ink);margin-top:8px}
 #player .prog{height:2px;background:var(--line);margin:12px 0;overflow:hidden}#player .prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s linear}
 #player .ctl{display:flex;gap:8px;align-items:center}
@@ -355,7 +355,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
   </div>
 </section>
 <section class="side-info" id="sourceWrap" hidden aria-label="The record">
-  <div id="source"><div class="dyk" id="sDyk"><div class="t">Did you know?</div><p id="sFact"></p><a class="src" id="sFactSrc" target="_blank" rel="noopener"></a></div><div id="sPlay" hidden><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div></div>
+  <div id="source"><div class="dyk" id="sDyk"><div class="t">Did you know?</div><p id="sFact"></p><a class="ghost src" id="sFactSrc" target="_blank" rel="noopener"></a></div><div id="sPlay" hidden><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div></div>
 </section>
 
 <div id="fieldMenu" class="drop" role="dialog" hidden></div>
@@ -1081,7 +1081,7 @@ function openFieldMenu(kind){const m=$('#fieldMenu'),btn=$({rec:'#fRec',inst:'#f
   if(kind==='rec'){m.setAttribute('aria-label','Choose a record');Object.entries(REC).forEach(([k,r])=>m.appendChild(fmItem(r.name,hasReal(k)?'Real NASA values, week by week':'Sample values for now',cur.rec===k,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);})));}
   if(kind==='inst'){m.setAttribute('aria-label','Choose an instrument');INSTRUMENTS.forEach(n=>m.appendChild(fmItem(n[0].toUpperCase()+n.slice(1),'',cur.instMode!=='random'&&cur.inst===n,()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
     m.appendChild(fmItem('Surprise me','A different instrument for each track',cur.instMode==='random',()=>{tools.set_instrument({instrument:'random'});conv&&conv.sendContextualUpdate(`The person chose Surprise me: a different instrument for each track. Now it is ${cur.inst}.`);}));}
-  if(kind==='place'){m.setAttribute('aria-label','Choose a place');placeSearch(m,()=>closeFieldMenu(true),'fmSearch');const h=myPlace();
+  if(kind==='place'){m.setAttribute('aria-label','Choose a place');placeSearch(m,()=>closeFieldMenu(true),'fmSearch');{const d=document.createElement('div');d.className='sep';m.appendChild(d);}const h=myPlace();
     m.appendChild(fmItem('My place',h.fallback?'Vaasa, Finland, used when your location is not shared':fullPlace({place:h.name,country:h.country}),cur.isHome,()=>goHome(true)));
     const rec=recentPlaces.filter(p=>!(cur.isHome&&p.name===h.name));if(rec.length){hd('Recent');rec.forEach(p=>m.appendChild(fmItem(p.name,p.country,!cur.isHome&&cur.place===p.name&&cur.country===p.country,()=>choosePlace(p))));}}
   const r=btn.getBoundingClientRect(),W=296;m.style.left=Math.max(16,Math.min(innerWidth-W-16,r.left))+'px';m.style.top=Math.min(r.bottom+8,innerHeight-160)+'px';
@@ -1096,7 +1096,7 @@ addEventListener('pointerdown',e=>{if(fmFor&&!e.target.closest('#fieldMenu,.fld'
 note('records','Pictures from the NASA Earth Information Center. Pick one to hear it.');
 Object.entries(REC).forEach(([k,r])=>tp('records').appendChild(opt('rec',k,r.name,`Plays on ${r.inst}`,()=>{tools.set_record({record_id:k});conv&&conv.sendContextualUpdate(`The person chose the record ${r.name}.`);},r.img)));
 /* Place */
-tp('place').appendChild(opt('place','My place','My place','',()=>goHome(true)));placeSearch(tp('place'),null,'optSearch');sep('place');
+placeSearch(tp('place'),null,'optSearch');sep('place');tp('place').appendChild(opt('place','My place','My place','',()=>goHome(true)));sep('place');
 Object.entries(PLACES).forEach(([n,v])=>tp('place').appendChild(opt('place',n,n,v[2],()=>{goPlace(n);conv&&conv.sendContextualUpdate(`The person moved the globe to ${fullPlace()}.`);})));
 /* Instrument */
 INSTRUMENTS.forEach(n=>tp('instrument').appendChild(opt('inst',n,n[0].toUpperCase()+n.slice(1),'',()=>{tools.set_instrument({instrument:n});conv&&conv.sendContextualUpdate(`The person changed the instrument to ${n}.`);})));
