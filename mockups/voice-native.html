@@ -821,7 +821,7 @@ function updPlayer(){/* a note from another record does not belong to this one (
   $('#pYear').textContent=stepLabel(cur.rec,prog.type==='year'?prog.i:Math.max(prog.from,trackI-1));$('#pBar').style.width=prog.type==='year'?'100%':((trackI-prog.from)/Math.max(1,prog.to-prog.from+1)*100)+'%';}
 function surprise(){if(cur.instMode!=='random')return;const c=INSTRUMENTS.filter(i=>i!==cur.inst);cur.inst=c[Math.floor(Math.random()*c.length)];syncOpts();}
 function startTrack(from=0,to=steps(cur.rec)-1){TN.on=false;clearTimeout(TN.timer);surprise();clearInterval(trackTimer);stopSpinSound();trackI=from;trackPaused=false;setProg({type:'track',from,to});const rec=cur.rec;
-  trackTimer=setInterval(()=>{if(trackPaused)return;const r=reading(trackI);cur.last=r;if(hasReal(rec))paintWeek(rec,trackI);if(r.x!=null){tone(r.frequency_hz,.4,posOf(cur.lat,cur.lon));if(r.drum)drum();tintTo(cur.rec,r.x);}trackI++;updPlayer();
+  trackTimer=setInterval(()=>{if(trackPaused||S.mode==='speaking')return;/* round 78: notes wait while Juke speaks */const r=reading(trackI);cur.last=r;if(hasReal(rec))paintWeek(rec,trackI);if(r.x!=null){tone(r.frequency_hz,.4,posOf(cur.lat,cur.lon));if(r.drum)drum();tintTo(cur.rec,r.x);}trackI++;updPlayer();
     if(trackI>to){clearInterval(trackTimer);trackTimer=null;setIcon();/* a hidden message, not a contextual update: updates never make Juke speak (round 73 live test) */nudge(`(Note from the app, not from the person.) The track ended. It played ${REC[rec].name} for ${fullPlace()} from ${stepLabel(rec,from,true)} to ${stepLabel(rec,to,true)} on ${cur.inst}, one note per ${noteUnit(rec)}. The last note was ${stepLabel(rec,to,true)}. Ask the person what they want next, in at most three short sentences.`);}},noteGap(rec)*1000);
   setIcon();updPlayer();}
 function playPause(){if(prog&&prog.type==='then'){thenAndNow({week:stepDate(prog.rec,prog.i)});return;}if(!prog||(prog.type==='track'&&!trackTimer)){startTrack(prog&&prog.type==='track'?prog.from:0,prog&&prog.type==='track'?prog.to:steps(cur.rec)-1);return;}if(prog.type==='spin'){spinTimer?stopSpinSound():startSpinSound();}else if(prog.type==='year'){startTrack(prog.i,steps(cur.rec)-1);}else{trackPaused=!trackPaused;}setIcon();}
@@ -880,7 +880,7 @@ async function twoPlaces({place_a,place_b}={}){const rec=cur.rec;if(!hasReal(rec
   if(A.every(v=>v==null)||B.every(v=>v==null))return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no data near one of these places.`};
   clearInterval(trackTimer);trackTimer=null;clearInterval(twoTimer);stopSpinSound();TN.on=false;
   const L={az:-60,el:0},R={az:60,el:0};let i=0;setProg({type:'two',from:0,to:n-1,a:{name:nameOf2(a),slat:sa.lat,slon:sa.lon},b:{name:nameOf2(b),slat:sb.lat,slon:sb.lon}});
-  twoTimer=setInterval(()=>{if(i>=n){clearInterval(twoTimer);twoTimer=null;setIcon();nudge(`(Note from the app, not from the person.) The two places have finished playing: ${nameOf2(a)} on the left, ${nameOf2(b)} on the right. Say this in your own words, in one or two short sentences, then ask what next: ${twoSay}`);return;}if(A[i]!=null)tone(noteOf(A[i]).hz,.4,L);if(B[i]!=null)setTimeout(()=>tone(noteOf(B[i]).hz,.4,R),120);trackI=i;updPlayer();i++;},noteGap(rec)*1000);
+  twoTimer=setInterval(()=>{if(S.mode==='speaking')return;if(i>=n){clearInterval(twoTimer);twoTimer=null;setIcon();nudge(`(Note from the app, not from the person.) The two places have finished playing: ${nameOf2(a)} on the left, ${nameOf2(b)} on the right. Say this in your own words, in one or two short sentences, then ask what next: ${twoSay}`);return;}if(A[i]!=null)tone(noteOf(A[i]).hz,.4,L);if(B[i]!=null)setTimeout(()=>tone(noteOf(B[i]).hz,.4,R),120);trackI=i;updPlayer();i++;},noteGap(rec)*1000);
   const vals=(S)=>S.filter(x=>x!=null).map(x=>val(x,rec));
   const va=vals(A),vb=vals(B),mean=v=>+(v.reduce((x,y)=>x+y,0)/v.length).toFixed(rec==='bio'?3:1);
   const nameOf=p=>p.country?`${p.name}, ${p.country}`:p.name,ma=mean(va),mb=mean(vb),d=+(ma-mb).toFixed(rec==='bio'?3:1);
@@ -1074,7 +1074,7 @@ function reveal(){started=true;document.body.classList.add('started');$('header'
 /* quiet watch: after 45 s with no word, typing, click or music, Juke says it will pause, then the app ends the call and offers Talk again (R) */
 let lastAct=performance.now(),warnedAt=0,factAt=0,lastOpts={},endedBy=null;
 /* the silence check goes to Juke as a message it must answer. Contextual updates do not make Juke speak. The echo of these messages is not shown */
-const hiddenMsgs=new Set();function nudge(t){if(!conv)return;hiddenMsgs.add(t);conv.sendUserMessage(t);}
+let lastJuke={text:'',t:0};const hiddenMsgs=new Set();function nudge(t,tries=0){if(!conv)return;if(S.mode==='speaking'&&tries<40){setTimeout(()=>nudge(t,tries+1),500);return;}hiddenMsgs.add(t);conv.sendUserMessage(t);}
 function activity(){lastAct=performance.now();warnedAt=0;factAt=0;}
 ['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{if(conv)activity();},true));
 setInterval(()=>{if(!conv||connecting)return;const now=performance.now();if(playingSomething()||S.user>.12){activity();return;}
@@ -1095,7 +1095,7 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
           const t0=performance.now();const wait=setInterval(()=>{if(!conv){clearInterval(wait);return;}if((LOG.length&&S.mode!=='speaking')||performance.now()-t0>15000){clearInterval(wait);nudge(msg);}},400);}$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
         if(why!=='quiet'&&why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
       onModeChange:({mode})=>{if(mode==='speaking'){clearTimeout(captionT);$('#captions').style.opacity=1;if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);if(!capQ.length)scheduleFade();}},
-      onMessage:({message,source})=>{if(source==='user'&&hiddenMsgs.has(message)){hiddenMsgs.delete(message);return;}caption(source==='user'?'you':'juke',message);}};
+      onMessage:({message,source})=>{if(source==='user'&&hiddenMsgs.has(message)){hiddenMsgs.delete(message);return;}if(source!=='user'){const now=Date.now();if(message===lastJuke.text&&now-lastJuke.t<8000){console.warn('Juke sent the same line twice',message);return;}lastJuke={text:message,t:now};}caption(source==='user'?'you':'juke',message);}};
     if(opts.textOnly)cfg.textOnly=true;else cfg.connectionType='webrtc';if(cfg.signedUrl)cfg.connectionType='websocket';if(cur.voice)cfg.overrides={tts:{voiceId:cur.voice}};
     conv=await Conversation.startSession(cfg);connecting=false;pending.splice(0).forEach(m=>conv.sendUserMessage(m));
     const loop=()=>{if(!opts.textOnly&&conv){S.user=Math.min(1,conv.getInputVolume()*2.2);S.agent=Math.min(1,conv.getOutputVolume()*2.2);}
@@ -1329,6 +1329,8 @@ drawShortcuts();updSrc();setRecordColours('sst');loadBright('sst');
 /* daily notes come from tiles fetched on demand: tools that play wait until this place's days are here (round 76) */
 ['play_key','play_track','set_year','then_and_now','play_today','play_moments','get_reading','explain_current_sound'].forEach(n=>{const f=tools[n];if(f)tools[n]=async(...a)=>{await ensureHere();return f(...a);};});
 ['set_place','set_record'].forEach(n=>{const f=tools[n];if(f)tools[n]=async(...a)=>{const r=await f(...a);await ensureHere();return r;};});
+/* round 78: the key and Today answer after their notes have played, so Juke does not talk over them */
+[['play_key',3300],['play_today',1300]].forEach(([n,ms])=>{const f=tools[n];tools[n]=async(...a)=>{const r=await f(...a);if(!/"error"/.test(r))await new Promise(ok=>setTimeout(ok,ms));return r;};});
 window.__jb={fetchSeaName,samplePoint,seaNames,get sky(){return skyStars},exploreTo,endExplore,tools,layoutStage,drawSky,LOG,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
 </script>
 </body>
