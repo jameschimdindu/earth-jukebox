@@ -1,0 +1,4 @@
+pipeline/cache/
+pipeline/out/
+.claude/
+node_modules/
