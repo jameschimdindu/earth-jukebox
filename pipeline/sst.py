@@ -18,7 +18,6 @@ import datetime as dt
 import json
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -116,9 +115,9 @@ def mur(date, lat, lon):
     """Daily MUR SST (JPL MUR v4.1, the source of NASA's picture) at one point, in degrees Celsius."""
     url = ("https://coastwatch.pfeg.noaa.gov/erddap/griddap/jplMURSST41.json?"
            f"analysed_sst%5B({date.isoformat()}T09:00:00Z)%5D%5B({lat})%5D%5B({lon})%5D")
-    try:
-        with urllib.request.urlopen(url, timeout=60) as r:
-            j = json.load(r)
+    try:  # curl, because this Python install has no SSL certificate bundle
+        out = subprocess.run(["curl", "-s", "-m", "40", url], capture_output=True, text=True, check=True).stdout
+        j = json.loads(out)
         v = j["table"]["rows"][0][-1]
         return None if v is None else float(v)
     except Exception as e:  # noqa: BLE001
@@ -126,6 +125,7 @@ def mur(date, lat, lon):
 
 
 def main():
+    sys.stdout.reconfigure(line_buffering=True)
     cmd, frames = sys.argv[1], [int(x) for x in sys.argv[2:]]
     OUT.mkdir(parents=True, exist_ok=True)
     band, values = lookup_table()
