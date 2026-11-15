@@ -117,6 +117,92 @@ def to_weeks(rec):
     print(f"{rec}: {len(files)} days -> {len(list(wdir.glob('*.npz')))} weeks")
 
 
+# ---------------- daily notes for the two sea records (round 76) ----------------
+# The app plays one note per day for sea surface temperature and its anomaly. A browser must not download every day of
+# the world (about 25 MB per record), so the daily values are cut into 30 x 30 degree tiles, one file per month:
+# mockups/data/<record>/daily/<YYYY-MM>/<tile row>-<tile col>.bin.gz, uint8 (31 days x 30 x 30 cells), day d in slot d - 1,
+# the same encoding as the weekly file, 255 = no data. The app fetches only the tiles of the place it plays.
+TILE = 30
+DATA_DIR = {"sst": "sst", "sst_anomaly": "sst_anomaly"}
+
+
+def quantize(rec, grid):
+    lo, step = ENC[rec]
+    q = np.full(grid.shape, 255, np.uint8)
+    ok = np.isfinite(grid)
+    q[ok] = np.clip(np.round((grid[ok] - lo) / step), 0, 200).astype(np.uint8)
+    return q
+
+
+def write_months(rec, days_grids):
+    """days_grids: {date: quantized 180 x 360 grid}. Updates the month tile files that these days fall in."""
+    base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
+    by_month = {}
+    for d, g in days_grids.items():
+        by_month.setdefault(f"{d:%Y-%m}", []).append((d, g))
+    for month, items in by_month.items():
+        mdir = base / month
+        mdir.mkdir(parents=True, exist_ok=True)
+        full = np.full((31, 180, 360), 255, np.uint8)
+        for tr in range(180 // TILE):  # read what is already there
+            for tc in range(360 // TILE):
+                f = mdir / f"{tr}-{tc}.bin.gz"
+                if f.exists():
+                    full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE] = np.frombuffer(gzip.decompress(f.read_bytes()), np.uint8).reshape(31, TILE, TILE)
+        for d, g in items:
+            full[d.day - 1] = g
+        for tr in range(180 // TILE):
+            for tc in range(360 // TILE):
+                t = np.ascontiguousarray(full[:, tr * TILE:(tr + 1) * TILE, tc * TILE:(tc + 1) * TILE])
+                (mdir / f"{tr}-{tc}.bin.gz").write_bytes(gzip.compress(t.tobytes(), 9))
+
+
+def daily_index(rec):
+    p = STATE / rec / "daily_index.json"
+    import json
+    return set(json.loads(p.read_text())) if p.exists() else set()
+
+
+def save_daily_index(rec, days):
+    import json
+    (STATE / rec / "daily_index.json").write_text(json.dumps(sorted(days)))
+
+
+def build_daily(rec):
+    """Once: the daily tiles from the days decoded in rounds 60 to 63 (pipeline/out/.../days/NNN.npy)."""
+    mod = __import__(RECORDS[rec]["module"])
+    old = {"sst": (HERE / "out" / "sst_exr" / "days", dt.date(2024, 5, 27)), "sst_anomaly": (HERE / "out" / "sst_anomaly" / "days", dt.date(2024, 5, 26))}[rec]
+    grids = {}
+    for p in sorted(old[0].glob("*.npy")):
+        d = old[1] + dt.timedelta(days=int(p.stem))
+        grids[d] = quantize(rec, mod.centre_fix(np.load(p)))
+    write_months(rec, grids)
+    save_daily_index(rec, {d.isoformat() for d in grids})
+    print(f"{rec}: {len(grids)} days written as daily tiles")
+
+
+def daily_meta(rec, days):
+    """Adds the daily part to meta.json and removes months that have left NASA's window."""
+    import json
+    base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
+    have = sorted(d for d in daily_index(rec) if d >= days[0].isoformat())
+    save_daily_index(rec, set(have))
+    for mdir in base.iterdir():
+        if mdir.is_dir() and mdir.name < f"{days[0]:%Y-%m}":
+            shutil.rmtree(mdir)
+    first, last = dt.date.fromisoformat(have[0]), dt.date.fromisoformat(have[-1])
+    every = {(first + dt.timedelta(days=k)).isoformat() for k in range((last - first).days + 1)}
+    meta_p = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "meta.json"
+    meta = json.loads(meta_p.read_text())
+    meta["daily"] = {"first": first.isoformat(), "last": last.isoformat(), "tile_deg": TILE,
+                     "months": sorted(m.name for m in base.iterdir() if m.is_dir()), "missing_days": sorted(every - set(have)),
+                     "layout": "daily/<YYYY-MM>/<tile row>-<tile col>.bin.gz, uint8 31 x 30 x 30, day d in slot d - 1, same encoding as weekly"}
+    meta_p.write_text(json.dumps(meta, indent=1))
+    print(f"{rec}: daily {first} to {last}, {len(have)} days")
+
+
+
+
 def update(rec):
     import json
     mod = __import__(RECORDS[rec]["module"])
@@ -126,7 +212,8 @@ def update(rec):
     counted = set()
     for p in wdir.glob("*.npz"):
         counted |= set(load_week(p)[2])
-    missing = [d for d in days if d.isoformat() not in counted]
+    in_daily = daily_index(rec)
+    missing = [d for d in days if d.isoformat() not in counted or d.isoformat() not in in_daily]
     print(f"{rec}: NASA has {days[0]} to {days[-1]} ({len(days)} days); {len(missing)} new", flush=True)
     work = Path(tempfile.mkdtemp(prefix=f"{rec}-"))
     try:
@@ -139,10 +226,15 @@ def update(rec):
                 n = (d - days[0]).days
                 mod.one_day(n, tree, values, cube)
                 return d, np.load(work / f"{n:03d}.npy")
+            new = {}
             with ThreadPoolExecutor(6) as ex:
                 for d, g in ex.map(one, missing):
-                    add_day(wdir, d, mod.centre_fix(g))
+                    fixed = mod.centre_fix(g)
+                    add_day(wdir, d, fixed)
+                    new[d] = quantize(rec, fixed)
                     print(f"   decoded {d}", flush=True)
+            write_months(rec, new)
+            save_daily_index(rec, daily_index(rec) | {d.isoformat() for d in new})
     finally:
         shutil.rmtree(work, ignore_errors=True)
     # weeks that have fully left NASA's window are dropped; a week needs at least 3 decoded days to be played
@@ -170,6 +262,7 @@ def update(rec):
                  "update": "pipeline/rolling.py, daily (.github/workflows/update-data.yml)"})
     (dest / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"{rec}: wrote {len(weeks)} weeks, {weeks[0][0]} to {weeks[-1][0]}")
+    daily_meta(rec, days)
 
 
 # ---------------- sea ice: one frame per week, frames named by year and day of the year ----------------
@@ -362,6 +455,9 @@ if __name__ == "__main__":
         update_air()
     elif arg == "fire":
         update_fire()
+    elif arg == "build_daily":
+        build_daily("sst")
+        build_daily("sst_anomaly")
     elif arg == "to_weeks":
         to_weeks("sst")
         to_weeks("sst_anomaly")
