@@ -231,6 +231,8 @@ def weekly():
             "week_starts": weeks, "days_per_week": 7, "grid": {"rows": 180, "cols": 360, "deg": 1,
             "row0_lat": 89.5, "col0_lon": -179.5}, "encoding": "uint8 value = round((T + 5) / 0.2); 255 = no data",
             "colour_curve_gamma_rgb": cal["gamma_rgb"],
+            "colour_bar": {"from_c": -5, "step_c": 1, "source": "NASA SVS 5101 sst_mur_colorbar.png, one colour per degree",
+                           "rgb": [[int(round(v)) for v in band[min(len(band) - 1, int(round((t - values[0]) / (values[-1] - values[0]) * (len(band) - 1))))]] for t in range(-5, 36)]},
             "error_vs_mur": "see docs/PROCESS.md (held-out test: mean absolute 0.33 C, 95% within 0.87 C)"}
     (dest / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"wrote {n_weeks} weeks from {n} frames; sea cells per week: {int((q[0] != 255).sum())}; {len(q.tobytes())} bytes")

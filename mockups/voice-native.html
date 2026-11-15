@@ -190,7 +190,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 .mk{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border:2px solid var(--white);border-radius:50%;box-shadow:0 0 0 1px var(--k64)}
 .mk::after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;border-radius:50%;background:var(--white)}
 #source .t{font-weight:500}#source .m{color:var(--mute)}
-#source .dyk{margin-top:16px}#source .dyk p{color:var(--mute);margin:4px 0 0}
+#source .dyk{margin:0}#source .dyk p{color:var(--mute);margin:4px 0 0}
 
 /* start screen: the orb waits, split at the centre. The header stays; only its buttons are hidden. */
 #gate{position:fixed;inset:0;z-index:20;pointer-events:none;transition:opacity .25s var(--ease-out)}
@@ -343,7 +343,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
   </div>
 </section>
 <section class="side-info" id="sourceWrap" hidden aria-label="The record">
-  <div id="source"><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div class="dyk" id="sDyk" hidden><div class="t">Did you know?</div><p id="sFact"></p></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div>
+  <div id="source"><div class="dyk" id="sDyk"><div class="t">Did you know?</div><p id="sFact"></p></div><div id="sPlay" hidden><div class="t" id="sTitle"></div><div class="m" id="sMeta"></div><div class="thumb"><img id="sImg" alt=""><div class="mk" id="sMk"></div></div><div><a class="ghost" id="sLink" target="_blank" rel="noopener">View on NASA <svg viewBox="0 0 24 24"><path d="M7 17L17 7M9 7h8v8"/></svg></a></div></div></div>
 </section>
 
 <div id="dock" hidden>
@@ -399,7 +399,21 @@ const FALLBACK_HOME={name:'Vaasa',country:'Finland',lat:63.1,lon:21.6,fallback:t
 let home=null;const myPlace=()=>home||FALLBACK_HOME;
 let cur={instMode:'fixed',rec:'sst',place:'Vaasa',country:'Finland',lat:63.1,lon:21.6,isHome:true,last:null,inst:'strings',voice:''};
 const fullPlace=(p=cur)=>p.country?`${p.place}, ${p.country}`:p.place;
-function oceanName(lat,lon){if(lat>66)return 'Arctic Ocean';if(lat<-60)return 'Southern Ocean';
+/* sea names from Marine Regions (marineregions.org gazetteer, free, no key). Cached per 1-degree cell; the rough name below is the fallback */
+const seaNames=new Map();
+function seaKey(lat,lon){return Math.round(lat)+','+Math.round(lon);}
+const seaPending=new Map();
+function fetchSeaName(lat,lon){const k=seaKey(lat,lon);if(seaNames.has(k))return Promise.resolve(seaNames.get(k));if(!seaPending.has(k))seaPending.set(k,lookSea(lat,lon,k));return seaPending.get(k);}
+async function lookSea(lat,lon,k){
+  try{const r=await fetch(`https://www.marineregions.org/rest/getGazetteerRecordsByLatLong.json/${lat.toFixed(2)}/${lon.toFixed(2)}/?offset=0`);if(!r.ok)return null;const j=await r.json();
+    const ok=x=>x&&x.preferredGazetteerNameLang==='English'&&!/mainland|land$/i.test(x.preferredGazetteerName),area=x=>Math.abs((x.maxLatitude-x.minLatitude)*(x.maxLongitude-x.minLongitude))||1e9;
+    /* the English IHO sea area with the smallest extent is the most specific name (Gulf of Bothnia, not Baltic Sea) */
+    const sv2=new Set(j.filter(x=>/SeaVoX/.test(x.placeType)).map(x=>x.preferredGazetteerName));const iho=j.filter(x=>x.placeType==='IHO Sea Area'&&ok(x)).sort((a,b)=>area(a)-area(b)||(sv2.has(b.preferredGazetteerName)-sv2.has(a.preferredGazetteerName))||(/^(Gulf|Sea|Bay) of/.test(b.preferredGazetteerName)-/^(Gulf|Sea|Bay) of/.test(a.preferredGazetteerName))),sv=j.find(x=>x.placeType==='SeaVoX SeaArea - level 1'&&ok(x));
+    /* Marine Regions answered but has no sea area here: the water is a lake or inland water (NASA's picture colours large lakes too) */
+    const n=iho[0]?.preferredGazetteerName||sv?.preferredGazetteerName||'inland water (a lake, not the sea)';
+    seaNames.set(k,n);return n;}catch(_){seaNames.set(k,null);return null;}}
+function oceanName(lat,lon){const n=seaNames.get(seaKey(lat,lon));if(n)return n;return roughOceanName(lat,lon);}
+function roughOceanName(lat,lon){if(lat>66)return 'Arctic Ocean';if(lat<-60)return 'Southern Ocean';
   if(lat>60&&lat<66&&lon>17&&lon<26)return 'Gulf of Bothnia';if(lat>53&&lat<60&&lon>10&&lon<30)return 'Baltic Sea';if(lat>30&&lat<46&&lon>-6&&lon<36)return 'Mediterranean Sea';
   if(lat>-6&&lat<7&&lon>-10&&lon<10)return 'Gulf of Guinea';if(lon>-70&&lon<20)return lat>=0?'North Atlantic Ocean':'South Atlantic Ocean';
   if(lon>=20&&lon<120&&lat<30)return 'Indian Ocean';return lat>=0?'North Pacific Ocean':'South Pacific Ocean';}
@@ -477,13 +491,17 @@ function upload(){gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex
 function resizeFx(){const dpr=Math.min(devicePixelRatio,2);cv.width=Math.round(cv.clientWidth*dpr);cv.height=Math.round(cv.clientHeight*dpr);gl.viewport(0,0,cv.width,cv.height);drawBg();}
 
 /* ================= land / water, and picture brightness for depth ================= */
-let land=null;{const img=new Image();img.crossOrigin='anonymous';img.src='https://cdn.jsdelivr.net/npm/three-globe@2.31.0/example/img/earth-water.png';
-  img.onload=()=>{const c=document.createElement('canvas');c.width=360;c.height=180;const g=c.getContext('2d');g.drawImage(img,0,0,360,180);const d=g.getImageData(0,0,360,180).data;land=new Uint8Array(360*180);for(let i=0;i<land.length;i++)land[i]=d[i*4]<100?1:0;buildLandTex();};}
+/* land and sea come from NASA's own sea temperature picture (SVS 5101): land and ice shelves are drawn grey there.
+   1-degree grid, sampled pixel by pixel (no smoothing, so colours do not mix) */
+let land=null;{const img=new Image();img.src='data/nasa/sst.jpg';
+  img.onload=()=>{const W=img.naturalWidth,H=img.naturalHeight,c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d');g.drawImage(img,0,0);const d=g.getImageData(0,0,W,H).data;land=new Uint8Array(360*180);
+    for(let y=0;y<180;y++)for(let x=0;x<360;x++){const i=(Math.floor((y+.5)*H/180)*W+Math.floor((x+.5)*W/360))*4,r=d[i],gg=d[i+1],b=d[i+2],m=(r+gg+b)/3;land[y*360+x]=(Math.max(r,gg,b)-Math.min(r,gg,b)<24&&m>40&&m<235)?1:0;}
+    buildLandTex();};}
 const isLand=(lat,lon)=>{if(!land)return 0;const x=Math.floor(((lon+180)%360+360)%360),y=Math.min(179,Math.max(0,Math.floor(90-lat)));return land[y*360+x];};
 const bright={};function loadBright(k){if(bright[k]||!REC[k].map)return;bright[k]='loading';const img=new Image();img.src=REC[k].img;img.onload=()=>{const c=document.createElement('canvas');c.width=360;c.height=180;const g=c.getContext('2d');g.drawImage(img,0,0,360,180);const d=g.getImageData(0,0,360,180).data;const a=new Float32Array(360*180);for(let i=0;i<a.length;i++)a[i]=(d[i*4]*.3+d[i*4+1]*.59+d[i*4+2]*.11)/255;bright[k]=a;};}
 function brightAt(lat,lon){const a=bright[cur.rec];if(!a||a==='loading')return isLand(lat,lon)?.5:0;const x=Math.floor(((lon+180)%360+360)%360),y=Math.min(179,Math.max(0,Math.floor(90-lat)));return a[y*360+x];}
 const angDist=(a1,o1,a2,o2)=>{const p1=a1*D2R,p2=a2*D2R,dl=(o2-o1)*D2R;return Math.acos(Math.max(-1,Math.min(1,Math.sin(p1)*Math.sin(p2)+Math.cos(p1)*Math.cos(p2)*Math.cos(dl))));};
-function nearestWater(lat,lon){if(!isLand(lat,lon))return {lat,lon,name:oceanName(lat,lon)};for(let r=1;r<=15;r++){for(let k=0;k<24;k++){const a=k/24*Math.PI*2,la=lat+r*Math.sin(a),lo=lon+r*Math.cos(a)/Math.max(.2,Math.cos(lat*D2R));if(!isLand(la,lo))return {lat:la,lon:lo,name:oceanName(la,lo)};}}return {lat,lon,name:'the nearest sea'};}
+function nearestWater(lat,lon){if(!isLand(lat,lon))return {lat,lon,name:oceanName(lat,lon)};const R=[.25,.5,.75,1,1.5,2,2.5,3,4,5,6,7,8,9,10,12,15];for(const r of R){for(let k=0;k<24;k++){const a=k/24*Math.PI*2,la=lat+r*Math.sin(a),lo=lon+r*Math.cos(a)/Math.max(.2,Math.cos(lat*D2R));if(!isLand(la,lo))return {lat:la,lon:lo,name:oceanName(la,lo)};}}return {lat,lon,name:'the nearest sea'};}
 function samplePoint(rec=cur.rec,lat=cur.lat,lon=cur.lon){if(REC[rec].sea&&isLand(lat,lon)){const w=nearestWater(lat,lon);return {lat:w.lat,lon:w.lon,water:w.name};}return {lat,lon,water:REC[rec].sea?oceanName(lat,lon):null};}
 
 /* ================= the orb: the globe with gradient ================= */
@@ -522,7 +540,7 @@ function drawOrb(t,sW,sM){O.ramp.forEach((c,i)=>c.lerp(O.rampT[i],.06));O.tint.l
       let d=1+.055*O.wob*n3(cy*1.5+ring.seed,cz*1.5,t*.5+i*.2)-.035*O.wob*Math.max(0,Math.sin(a*2+ring.seed)-.92)*12+amp*n3(cy*3+i*.4,cz*3,t*2.2+ring.seed)+near*sM*.16;
       if(S.mode==='processing')d+=.06*Math.sin(a*3+t*3+i*.5);if(reduce)d=1;if(dep>.001)d+=dep*brightAt(lat,lon);
       pos[k*3]=sx;pos[k*3+1]=ring.r*cy*d*RO;pos[k*3+2]=ring.r*cz*d*RO;
-      let c=rampAt(1-Math.abs(lat)/90).clone().lerp(O.tint,O.tintAmt*(.5+near*.5)),alpha;if(isLand(lat,lon)){alpha=1;c.lerp(WHITE,.35);}else{alpha=.07;c.multiplyScalar(.6);}
+      let c=rampAt(1-Math.abs(lat)/90).clone().lerp(O.tint,O.tintAmt*(.5+near*.5)),alpha;if(TN.on)c.lerp(ring.s<0?TN.thenC:TN.nowC,.8);if(isLand(lat,lon)){alpha=1;c.lerp(WHITE,.35);}else{alpha=.07;c.multiplyScalar(.6);}
       if(dep>.001){const b=brightAt(lat,lon);alpha=Math.max(alpha,b*O.depth*.32);}
       if(O.pin===3&&started){const nb=Math.exp(-Math.pow(ang/.5,2));if(nb>.03){const g=nb*(.9+sM*.8);alpha=Math.min(1,alpha+g*1.4);c.lerp(O.tint.clone().lerp(WHITE,.3),Math.min(1,g));}}
       col[k*4]=c.r;col[k*4+1]=c.g;col[k*4+2]=c.b;col[k*4+3]=alpha;}
@@ -550,7 +568,15 @@ const gGlow=$('#globeGlow');let gGlowTint='';
 const globe=new THREE.Mesh(new THREE.SphereGeometry(RO,256,128),gMat);vscene.add(globe);
 const gRing=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff}));const gRing2=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff,transparent:true}));vscene.add(gRing,gRing2);
 
-function setGlobeTex(k){const r=REC[k];if(r.map){if(!texCache[k])texCache[k]=texL.load(r.img);gMat.uniforms.map.value=texCache[k];}else gMat.uniforms.map.value=landTex;}
+/* while a track of real data plays, the realistic globe shows the week being played, drawn from the decoded weekly grid
+   with NASA's own colour bar (pipeline meta.json). Land is grey, as in NASA's picture. Coarser than NASA's picture, but always the week you hear */
+let weekTex=null,weekShown=-1;
+function paintWeek(rec,i){const R=REAL[rec];if(!R||!R.meta.colour_bar)return;const cb=R.meta.colour_bar,c=weekTex?weekTex.image:Object.assign(document.createElement('canvas'),{width:360,height:180});const g=c.getContext('2d'),im=g.createImageData(360,180);
+  for(let r=0;r<180;r++)for(let k=0;k<360;k++){const v=R.data[i*64800+r*360+k],o=(r*360+k)*4;let col;
+    if(v===255)col=land&&land[r*360+k]?[110,110,110]:[170,170,170];else{const t=v*.2-5,f=(t-cb.from_c)/cb.step_c,a=Math.max(0,Math.min(cb.rgb.length-1,Math.floor(f))),b=Math.min(cb.rgb.length-1,a+1),w=Math.max(0,Math.min(1,f-a));col=[0,1,2].map(j=>cb.rgb[a][j]*(1-w)+cb.rgb[b][j]*w);}
+    im.data[o]=col[0];im.data[o+1]=col[1];im.data[o+2]=col[2];im.data[o+3]=255;}
+  g.putImageData(im,0,0);if(!weekTex){weekTex=new THREE.CanvasTexture(c);}weekTex.needsUpdate=true;weekShown=i;if(isReal())gMat.uniforms.map.value=weekTex;}
+function setGlobeTex(k){const r=REC[k];if(weekTex&&weekShown>=0&&prog&&prog.type==='track'&&prog.rec===k&&hasReal(k)){gMat.uniforms.map.value=weekTex;return;}if(r.map){if(!texCache[k])texCache[k]=texL.load(r.img);gMat.uniforms.map.value=texCache[k];}else gMat.uniforms.map.value=landTex;}
 function sizeGlobe(){const w=gbox.clientWidth;vr.setSize(w,w,false);}
 function drawGlobe(t,sW,sM){O.tint.lerp(O.tintT,.15);globe.rotation.set(O.glat*D2R,-(O.glon+90)*D2R,0,'XYZ');
   gMat.uniforms.depth.value=O.gdepth*.12;gMat.uniforms.light.value=O.gdepth;globe.scale.setScalar(reduce?1:1+sW*.025+sM*.02);
@@ -579,7 +605,7 @@ function frame(now){const t=(now-t0)/1000,dpr=Math.min(devicePixelRatio,2);
   gl.uniform2f(uni.R,cv.width,cv.height);gl.uniform1f(uni.t,t);gl.uniform2f(uni.C,(r.left+r.width/2)*dpr,cv.height-(r.top+r.height/2)*dpr);
   gl.uniform1f(uni.SR,r.width/2*.69*dpr);gl.uniform4fv(uni.W,W);gl.uniform1f(uni.U,S.user);gl.uniform1f(uni.K,S.think);gl.uniform1f(uni.RD,reduce?1:0);gl.uniform3fv(uni.AC,S.acs);
   skyFrame(t+t0/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);drawLogo(t,Math.max(S.agent,S.user,S.music*1.3));
-  updView(t);const sb=sideOn?sideSplit:.26;O.split+=((started?0:(reduce?sb:sb+.05*Math.sin(t*2.2)))-O.split)*(started?.06:.2);if(started&&sideOn&&O.split<.3)layoutStage();
+  updView(t);const sb=sideOn?sideSplit:.26;O.split+=((started?(TN.on?.34:0):(reduce?sb:sb+.05*Math.sin(t*2.2)))-O.split)*(started?.06:.2);if(started&&sideOn&&O.split<.3)layoutStage();
   O.depth+=((O.style==='linesDepth'?1:0)-O.depth)*.08;O.gdepth+=((O.style==='realDepth'?1:0)-O.gdepth)*.08;
   if(isReal())drawGlobe(t,smoothW,smoothM);else drawOrb(t,smoothW,smoothM);requestAnimationFrame(frame);}
 /* layoutStage: the orb stays in the exact centre. Its size is the largest that leaves 40 px to the header above and room for two caption lines plus 40 px gaps below.
@@ -678,7 +704,8 @@ function currentX(){const sp=samplePoint();if(prog&&prog.type==='track')return s
 /* ================= player (no card) ================= */
 let prog=null,trackI=0,trackTimer=null,trackPaused=false,spinTimer=null;
 const playingSomething=()=>(trackTimer&&!trackPaused)||!!spinTimer;
-let factFor=null;setInterval(()=>{const d=$('#sDyk');if(d)d.hidden=playingSomething()||!$('#sFact').textContent;},500);
+/* the record card: "Did you know?" when nothing plays, the source (record, NASA picture, link) while something plays */
+let factFor=null;setInterval(()=>{const d=$('#sDyk'),p=$('#sPlay');if(!d||!p)return;const playing=playingSomething()||(prog&&prog.type==='then');d.hidden=playing||!$('#sFact').textContent;p.hidden=!playing;},400);
 const canResume=()=>prog&&((prog.type==='track'&&trackTimer&&trackPaused)||(prog.type==='spin'&&!spinTimer));
 function setProg(p){prog={rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,...p};}
 function setIcon(){const p=playingSomething();$('#pIcon').innerHTML=p?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4v16l13-8z"/>';$('#pPlay').setAttribute('aria-label',p?'Pause':'Play');
@@ -686,18 +713,42 @@ function setIcon(){const p=playingSomething();$('#pIcon').innerHTML=p?'<path d="
 function updPlayer(){const sp=samplePoint();$('#pRec').innerHTML=`<b>${REC[cur.rec].name}</b>, on ${cur.inst}`;$('#pPlace').textContent=fullPlace();
   $('#pWater').textContent=REC[cur.rec].sea&&sp.water&&isLand(cur.lat,cur.lon)?`Sea: ${sp.water}`:'';$('#pVal').textContent='';
   if(!prog){$('#pYear').textContent='Ready';$('#pBar').style.width='0';return;}
+  if(prog.type==='then'){const s=realSeries(cur.rec,sp.lat,sp.lon);$('#pYear').textContent='Then and now';$('#pVal').textContent=s?`${stepLabel(cur.rec,prog.j)}: ${s.t[prog.j]} °C, ${stepLabel(cur.rec,prog.i)}: ${s.t[prog.i]} °C`:'';$('#pBar').style.width='100%';return;}
   if(prog.type==='spin'){$('#pYear').textContent='Spinning';$('#pPlace').textContent=`Around the world at ${Math.abs(prog.lat).toFixed(0)}° ${prog.lat>=0?'north':'south'}, ${prog.dir>0?'east':'west'}`;$('#pWater').textContent='';$('#pBar').style.width='100%';return;}
   const x=currentX();$('#pVal').textContent=x==null?'No sea data here this week':`${val(x)} ${REC[cur.rec].unit}, ${valueWords(x)}`;
   $('#pYear').textContent=stepLabel(cur.rec,prog.type==='year'?prog.i:Math.max(prog.from,trackI-1));$('#pBar').style.width=prog.type==='year'?'100%':((trackI-prog.from)/Math.max(1,prog.to-prog.from+1)*100)+'%';}
 function surprise(){if(cur.instMode!=='random')return;const c=INSTRUMENTS.filter(i=>i!==cur.inst);cur.inst=c[Math.floor(Math.random()*c.length)];syncOpts();}
-function startTrack(from=0,to=steps(cur.rec)-1){surprise();clearInterval(trackTimer);stopSpinSound();trackI=from;trackPaused=false;setProg({type:'track',from,to});const rec=cur.rec;
-  trackTimer=setInterval(()=>{if(trackPaused)return;const r=reading(trackI);cur.last=r;if(r.x!=null){tone(r.frequency_hz,.4,posOf(cur.lat,cur.lon));if(r.drum)drum();tintTo(cur.rec,r.x);}trackI++;updPlayer();
+function startTrack(from=0,to=steps(cur.rec)-1){TN.on=false;clearTimeout(TN.timer);surprise();clearInterval(trackTimer);stopSpinSound();trackI=from;trackPaused=false;setProg({type:'track',from,to});const rec=cur.rec;
+  trackTimer=setInterval(()=>{if(trackPaused)return;const r=reading(trackI);cur.last=r;if(hasReal(rec))paintWeek(rec,trackI);if(r.x!=null){tone(r.frequency_hz,.4,posOf(cur.lat,cur.lon));if(r.drum)drum();tintTo(cur.rec,r.x);}trackI++;updPlayer();
     if(trackI>to){clearInterval(trackTimer);trackTimer=null;setIcon();conv&&conv.sendContextualUpdate(`The track ended. It played ${REC[rec].name} for ${fullPlace()} from ${stepLabel(rec,from,true)} to ${stepLabel(rec,to,true)} on ${cur.inst}, one note per ${hasReal(rec)?'week':'year'}. The last note was ${stepLabel(rec,to,true)}. Ask the person what they want next.`);}},hasReal(rec)?300:380);
   setIcon();updPlayer();}
-function playPause(){if(!prog||(prog.type==='track'&&!trackTimer)){startTrack(prog&&prog.type==='track'?prog.from:0,prog&&prog.type==='track'?prog.to:steps(cur.rec)-1);return;}if(prog.type==='spin'){spinTimer?stopSpinSound():startSpinSound();}else if(prog.type==='year'){startTrack(prog.i,steps(cur.rec)-1);}else{trackPaused=!trackPaused;}setIcon();}
+function playPause(){if(prog&&prog.type==='then'){thenAndNow({week:REAL[prog.rec]?.meta.week_starts[prog.i]});return;}if(!prog||(prog.type==='track'&&!trackTimer)){startTrack(prog&&prog.type==='track'?prog.from:0,prog&&prog.type==='track'?prog.to:steps(cur.rec)-1);return;}if(prog.type==='spin'){spinTimer?stopSpinSound():startSpinSound();}else if(prog.type==='year'){startTrack(prog.i,steps(cur.rec)-1);}else{trackPaused=!trackPaused;}setIcon();}
 $('#pPlay').onclick=playPause;
 function startSpinSound(){if(!spinTimer)surprise();clearInterval(spinTimer);spinTimer=setInterval(()=>{const lat=O.vt/.75;const x=base01(cur.rec,lat,O.vl);if(x==null)return;tintTo(cur.rec,x);tone(noteOf(x).hz,.35,spinPos(lat),.12);},420);setIcon();}
 function stopSpinSound(){clearInterval(spinTimer);spinTimer=null;setIcon();}
+/* ================= Then and now =================
+   The same week at this place, one year apart. Then plays on the left, now on the right, each as a three-note phrase
+   (the week before, the week, the week after), then both notes together. The line globe splits: the left half takes
+   the colour of then, the right half the colour of now. Juke says only the measured difference. */
+const TN={on:false,thenC:new THREE.Color(),nowC:new THREE.Color(),timer:null};
+function weekIndex(rec,q){const n=steps(rec);if(!q)return n-1;const d=Date.parse(q);if(isNaN(d))return n-1;let best=n-1,bd=1e15;for(let i=0;i<n;i++){const t=Date.parse(REAL[rec].meta.week_starts[i]);if(Math.abs(t-d)<bd){bd=Math.abs(t-d);best=i;}}return best;}
+function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`Then and now needs real data. ${REC[rec].name} still uses sample values. Offer sea surface temperature.`};
+  const sp=samplePoint(),s=realSeries(rec,sp.lat,sp.lon);if(!s)return{error:`NASA's picture has no ${REC[rec].short} data near ${fullPlace()}.`};
+  let i=weekIndex(rec,week);if(i<52)i=52;let tries=0;while((s.t[i]==null||s.t[i-52]==null)&&tries<20&&i>52){i--;tries++;}const j=i-52;if(s.t[i]==null||s.t[j]==null)return{error:'No pair of matching weeks with data here.'};
+  clearInterval(trackTimer);trackTimer=null;stopSpinSound();clearTimeout(TN.timer);
+  const tv=s.t[j],nv=s.t[i],diff=+(nv-tv).toFixed(1),err=.33,same=Math.abs(diff)<err;
+  TN.thenC.setRGB(...rampRGB(rec,toX(rec,tv)));TN.nowC.setRGB(...rampRGB(rec,toX(rec,nv)));TN.on=true;setProg({type:'then',i,j});
+  const L={az:-60,el:posOf(cur.lat,cur.lon).el},Rr={az:60,el:L.el},C={az:0,el:L.el},hz=k=>s.t[k]==null?null:noteOf(toX(rec,s.t[k])).hz;
+  const plan=[[0,j-1,L],[.45,j,L],[.9,j+1,L],[2,i-1,Rr],[2.45,i,Rr],[2.9,i+1,Rr]];
+  plan.forEach(([t,k,pos])=>{const f=k>=0&&k<s.t.length?hz(k):null;if(f)setTimeout(()=>tone(f,.42,pos),t*1000);});
+  setTimeout(()=>{const a=hz(j),b=hz(i);if(a)tone(a,1.4,C);if(b)tone(b,1.4,C);if(!same&&diff>0)drum();},4000);
+  TN.timer=setTimeout(()=>{TN.on=false;if(prog&&prog.type==='then'){prog=null;updPlayer();setIcon();}},11000);
+  const words=same?`about the same: the difference, ${Math.abs(diff)} degrees, is smaller than the measured error of about 0.3 degrees`:`${Math.abs(diff)} degrees Celsius ${diff>0?'warmer':'cooler'} than the same week a year before`;
+  $('#srStatus').textContent=`Then and now at ${fullPlace()}. ${stepLabel(rec,j,true)}: ${tv} degrees. ${stepLabel(rec,i,true)}: ${nv} degrees. ${same?'About the same.':`${Math.abs(diff)} degrees ${diff>0?'warmer':'cooler'}.`}`;
+  updPlayer();setIcon();
+  return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,
+    sound:'then on the left, now on the right, each as three notes, then both notes together; a drum if now is warmer',
+    note:'One year apart is not a trend. Say only the difference. Do not give a cause.'};}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
 /* the logo: pause, play again, or go home */
 $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
@@ -706,6 +757,9 @@ $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(pla
 const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
 async function renderProg(p){const sr=44100;let steps=[];
   if(p.type==='track'){const gap=hasReal(p.rec)?.3:.38;for(let i=p.from;i<=p.to;i++){const r=readingFor(p.rec,p.lat,p.lon,i);if(r.x!=null)steps.push({t:(i-p.from)*gap,f:r.frequency_hz,dur:.4,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}}
+  else if(p.type==='then'){const sp=samplePoint(p.rec,p.lat,p.lon),s=realSeries(p.rec,sp.lat,sp.lon),el=posOf(p.lat,p.lon).el,hz=k=>s&&s.t[k]!=null?noteOf(toX(p.rec,s.t[k])).hz:null;
+    [[0,p.j-1,-60],[.45,p.j,-60],[.9,p.j+1,-60],[2,p.i-1,60],[2.45,p.i,60],[2.9,p.i+1,60]].forEach(([t,k,az])=>{const f=hz(k);if(f)steps.push({t,f,dur:.42,pos:{az,el},drum:false,vol:.16});});
+    [hz(p.j),hz(p.i)].forEach(f=>{if(f)steps.push({t:4,f,dur:1.4,pos:{az:0,el},drum:false,vol:.14});});}
   else if(p.type==='year'){const r=readingFor(p.rec,p.lat,p.lon,p.i);if(r.x!=null)steps.push({t:0,f:r.frequency_hz,dur:.8,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}
   else{const n=Math.ceil(360/p.speed/.42);for(let k=0;k<n;k++){const lon=p.startLon+p.dir*p.speed*.42*k;steps.push({t:k*.42,f:noteOf(base01(p.rec,p.lat,lon)??0).hz,dur:.35,pos:{az:((p.dir*p.speed*.42*k+180)%360)-180,el:Math.max(-40,Math.min(40,p.lat*.45))},drum:false,vol:.12});}}
   const len=(steps.length?steps[steps.length-1].t:0)+2;const ctx=new OfflineAudioContext(2,Math.ceil(len*sr),sr);const out=ctx.createGain();out.connect(ctx.destination);
@@ -714,7 +768,7 @@ async function renderProg(p){const sr=44100;let steps=[];
   ws(0,'RIFF');v.setUint32(4,36+n*4,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,sr,true);v.setUint32(28,sr*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,n*4,true);
   for(let i=0;i<n;i++){v.setInt16(44+i*4,Math.max(-1,Math.min(1,L[i]))*32767,true);v.setInt16(46+i*4,Math.max(-1,Math.min(1,R[i]))*32767,true);}return new Blob([ab],{type:'audio/wav'});}
 async function download(){const p=prog||{type:'track',rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,from:0,to:steps(cur.rec)-1};
-  const what=p.type==='spin'?`spin-${Math.round(Math.abs(p.lat))}${p.lat>=0?'n':'s'}-${p.speed}deg-s-${p.dir>0?'east':'west'}`:p.type==='year'?slug(stepLabel(p.rec,p.i)):`${slug(stepLabel(p.rec,p.from))}-to-${slug(stepLabel(p.rec,p.to))}`;
+  const what=p.type==='then'?`then-and-now-${slug(stepLabel(p.rec,p.j))}-${slug(stepLabel(p.rec,p.i))}`:p.type==='spin'?`spin-${Math.round(Math.abs(p.lat))}${p.lat>=0?'n':'s'}-${p.speed}deg-s-${p.dir>0?'east':'west'}`:p.type==='year'?slug(stepLabel(p.rec,p.i)):`${slug(stepLabel(p.rec,p.from))}-to-${slug(stepLabel(p.rec,p.to))}`;
   const name=`earth-jukebox_${slug(REC[p.rec].name)}_${slug(p.type==='spin'?'world':fullPlace(p))}_${what}_${slug(p.inst)}.wav`;
   const blob=await renderProg(p);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   $('#srStatus').textContent=`Downloaded ${name}`;caption('juke',`Saved ${name}.`);}
@@ -736,7 +790,10 @@ async function nameLand(lat,lon){try{const r=await fetch(`https://api.bigdataclo
   const n=j.city||j.locality||'';return n&&!/ocean|sea$/i.test(n)?{name:n,country:j.countryName||''}:null;}catch(e){return null;}}
 function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
 function goHome(tell){const h=myPlace();goPlace(h.name,h.lat,h.lon,h.country);cur.isHome=true;syncOpts();if(tell&&conv)conv.sendContextualUpdate(`The person went back to their own place, ${fullPlace()}.`);}
-function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);syncURL();}
+function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);syncURL();ensureSeaName();}
+/* look up the real name of the water we listen to, then redraw. Waits at most 2.5 s */
+async function ensureSeaName(){if(!REC[cur.rec].sea)return;const w=nearestWater(cur.lat,cur.lon);if(seaNames.has(seaKey(w.lat,w.lon)))return;
+  const n=await Promise.race([fetchSeaName(w.lat,w.lon),new Promise(r=>setTimeout(()=>r(null),2500))]);if(n){updPlayer();updSrc();}}
 /* share links: the address holds the place and the record, so a copied link opens the same moment.
    ?place=Lagos&country=Nigeria&lat=6.45&lon=3.39&record=sst  (a week joins when real data arrives) */
 function linkParams(){const q=new URLSearchParams();if(!cur.isHome){q.set('place',cur.place||'');if(cur.country)q.set('country',cur.country);q.set('lat',(+cur.lat).toFixed(2));q.set('lon',(+cur.lon).toFixed(2));}q.set('record',cur.rec);return q;}
@@ -770,13 +827,14 @@ async function locate(){if(!navigator.geolocation)return null;
 
 /* ================= client tools (mock data) ================= */
 const tools={
+ then_and_now:(a)=>JSON.stringify(thenAndNow(a||{})),
  offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}.`;},
  list_records:()=>JSON.stringify(Object.entries(REC).map(([id,r])=>({id,name:r.name,unit:r.unit}))),
  set_record:({record_id})=>{if(!REC[record_id])return 'error: unknown record id. Call list_records.';cur.rec=record_id;if(cur.instMode!=='random')cur.inst=REC[record_id].inst;loadBright(record_id);if(isReal())setGlobeTex(record_id);syncOpts();refresh();const sp=samplePoint();
    return JSON.stringify({mock:true,id:record_id,name:REC[record_id].name,unit:REC[record_id].unit,instrument:cur.inst,place:fullPlace(),water_name:REC[record_id].sea&&isLand(cur.lat,cur.lon)?sp.water:null,place_is_on_land:!!isLand(cur.lat,cur.lon)});},
  set_place:async({place_name})=>{const n=findPlace(place_name);if(n==='My place')goHome();else if(n)goPlace(n);else{const g=await geocode(place_name);
    if(g.error)return JSON.stringify({error:g.error});if(g.options)return JSON.stringify({options:g.options,note:'More than one place has this name. Ask which one with offer_choices, then call set_place with the chosen name.'});
-   goPlace(g.name,g.lat,g.lon,g.country);}const sp=samplePoint();return JSON.stringify({found:fullPlace(),lat:cur.lat,lon:cur.lon,water_name:REC[cur.rec].sea&&isLand(cur.lat,cur.lon)?sp.water:null});},
+   goPlace(g.name,g.lat,g.lon,g.country);}await ensureSeaName();const sp=samplePoint();return JSON.stringify({found:fullPlace(),lat:cur.lat,lon:cur.lon,water_name:REC[cur.rec].sea?sp.water:null,on_land:!!isLand(cur.lat,cur.lon)});},
  play_key:()=>{const sp=samplePoint(),s=seriesFor(cur.rec,sp.lat,sp.lon).filter(v=>v!=null),real=hasReal(cur.rec);
    if(!s.length)return JSON.stringify({error:`NASA's picture has no ${REC[cur.rec].short} data near ${fullPlace()}. Offer another place or record.`});
    const b=s.reduce((a,c)=>a+c,0)/s.length,n1=noteOf(b),n2=noteOf(b+.14);const pp=posOf(cur.lat,cur.lon);setTimeout(()=>tone(n1.hz,1,pp),300);setTimeout(()=>tone(n2.hz,1,pp),1500);setTimeout(drum,2700);
