@@ -750,11 +750,13 @@ function closeGate(){const g=$('#gate');if(g.hidden)return;g.classList.add('out'
 function reveal(){started=true;document.body.classList.add('started');$('header').inert=false;closeGate();setTimeout(()=>{layoutCaptions();drawSky(true);},650);$('#dock').hidden=false;applyLayout();updPlayer();setIcon();layoutCaptions();}
 /* quiet watch: after 45 s with no word, typing, click or music, Juke says it will pause, then the app ends the call and offers Talk again (R) */
 let lastAct=performance.now(),warnedAt=0,factAt=0,lastOpts={},endedBy=null;
+/* the silence check goes to Juke as a message it must answer. Contextual updates do not make Juke speak. The echo of these messages is not shown */
+const hiddenMsgs=new Set();function nudge(t){if(!conv)return;hiddenMsgs.add(t);conv.sendUserMessage(t);}
 function activity(){lastAct=performance.now();warnedAt=0;factAt=0;}
 ['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{if(conv)activity();},true));
 setInterval(()=>{if(!conv||connecting)return;const now=performance.now();if(playingSomething()||S.user>.12){activity();return;}
-  if(!warnedAt&&now-lastAct>45000&&S.mode!=='speaking'){warnedAt=now;factAt=0;conv.sendContextualUpdate('The person has been quiet for 45 seconds. In one short sentence, ask if they are still there. Then stop talking and wait.');}
-  else if(warnedAt&&!factAt&&now-warnedAt>15000&&S.mode!=='speaking'){factAt=now;const f=nextFact();conv.sendContextualUpdate(`There was no answer. Say "Did you know?" and then this one fact in your own short words: ${f} Then say in one short sentence that you will pause, and that R or Talk again continues. Then stop talking.`);}
+  if(!warnedAt&&now-lastAct>45000&&S.mode!=='speaking'){warnedAt=now;factAt=0;nudge('(Note from the app, not from the person: the person has been quiet for 45 seconds. Ask once, in one short sentence, if they are still there. Then wait.)');}
+  else if(warnedAt&&!factAt&&now-warnedAt>15000&&S.mode!=='speaking'){factAt=now;const f=nextFact();nudge(`(Note from the app, not from the person: there was no answer. Say "Did you know?" and then this one fact in your own short words: ${f} Then say in one short sentence that you will pause, and that R or Talk again continues.)`);}
   else if(factAt&&((now-factAt>6000&&S.mode!=='speaking')||now-factAt>22000))endConv('quiet');},1000);
 function talkAgain(){if(conv||connecting)return;caption('juke','Connecting again.');start(lastOpts);}
 async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts;endedBy=null;activity();audio();reveal();if(opts.textOnly)$('#typeIn').focus();setState('processing','Finding where you are');
@@ -765,9 +767,9 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
     let auth={agentId:AGENT_ID};try{const r=await fetch(`/api/token?type=${opts.textOnly?'ws':'webrtc'}`,{cache:'no-store'});if(r.ok){const j=await r.json();if(j.token)auth={conversationToken:j.token};else if(j.signedUrl)auth={signedUrl:j.signedUrl};}}catch(_){}
     const cfg={...auth,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
       onConnect:()=>{setState('listening','Listening');offerChoices(['The sea','The air','The ice']);$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
-        if(why==='quiet')caption('juke','I paused because it was quiet.',true);else if(why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
+        if(why!=='quiet'&&why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
       onModeChange:({mode})=>{if(mode==='speaking'){clearTimeout(captionT);$('#captions').style.opacity=1;if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);if(!capQ.length)scheduleFade();}},
-      onMessage:({message,source})=>caption(source==='user'?'you':'juke',message)};
+      onMessage:({message,source})=>{if(source==='user'&&hiddenMsgs.has(message)){hiddenMsgs.delete(message);return;}caption(source==='user'?'you':'juke',message);}};
     if(opts.textOnly)cfg.textOnly=true;else cfg.connectionType='webrtc';if(cfg.signedUrl)cfg.connectionType='websocket';if(cur.voice)cfg.overrides={tts:{voiceId:cur.voice}};
     conv=await Conversation.startSession(cfg);connecting=false;pending.splice(0).forEach(m=>conv.sendUserMessage(m));
     const loop=()=>{if(!opts.textOnly&&conv){S.user=Math.min(1,conv.getInputVolume()*2.2);S.agent=Math.min(1,conv.getOutputVolume()*2.2);}
