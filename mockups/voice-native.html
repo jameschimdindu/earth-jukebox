@@ -283,6 +283,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
         <button role="menuitem" data-act="src">The record <span class="go"><kbd>N</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="log">Transcript <span class="go"><kbd>T</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
         <button role="menuitem" data-act="keys">Keyboard shortcuts <span class="go"><kbd>?</kbd><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span></button>
+        <button role="menuitem" data-act="share" id="shareBtn">Copy a link to this place <kbd>C</kbd></button>
         <div class="sep" role="separator"></div>
         <button role="menuitem" data-act="end" id="endBtn">End the conversation <kbd>R</kbd></button>
       </div>
@@ -311,6 +312,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
           <kbd>/</kbd><span>Type to Juke</span>
           <kbd>?</kbd><span>This list</span>
           <kbd>T</kbd><span>Transcript</span>
+          <kbd>C</kbd><span>Copy a link to this place</span>
           <kbd>Esc</kbd><span>Close</span>
         </div>
         <p class="hint" style="margin-top:14px">Press and hold the globe to open Options. Click the logo to pause, play again, or go to My place.</p>
@@ -689,9 +691,32 @@ $('#dlBtn').onclick=download;
 
 /* ================= places and location ================= */
 const findPlace=q=>{q=(q||'').toLowerCase().replace(/^the /,'').replace(/,.*$/,'').trim();if(/^(my place|home|here)$/.test(q))return 'My place';return Object.keys(PLACES).find(k=>k.toLowerCase()===q)||Object.keys(PLACES).find(k=>k.toLowerCase().includes(q)&&q.length>2);};
+/* any place by name: Open-Meteo's free geocoder (no key). "Paris, United States" picks the country. If two or more large places share the name, the tool returns options */
+async function geocode(q){const [name,cc]=(q||'').split(',').map(x=>x.trim());if(!name)return{error:'No place name.'};
+  try{const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=10&language=en&format=json`);const j=await r.json();
+    let res=(j.results||[]).filter(x=>/^(PPL|ADM|PCL)/.test(x.feature_code||'PPL'));if(cc)res=res.filter(x=>(x.country||'').toLowerCase().startsWith(cc.toLowerCase()));
+    if(!res.length)return{error:`No place called ${q} was found. Ask the person for a larger place nearby.`};
+    const big=res.filter(x=>(x.population||0)>=100000||/^PCL|^ADM1/.test(x.feature_code||''));
+    const top=res[0];if(!cc&&big.length>1&&new Set(big.map(x=>x.country)).size>1&&(big[1].population||0)>(top.population||0)*.25)return{options:big.slice(0,3).map(x=>`${x.name}, ${x.country}`)};
+    return{name:top.name,country:top.country||'',lat:top.latitude,lon:top.longitude};}
+  catch(e){return{error:'The place search is not reachable right now. Offer one of the built-in places.'};}}
+/* after a drag, name the point with the same reverse geocoder as My place (land only). The sea keeps its ocean name */
+async function nameLand(lat,lon){try{const r=await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`);const j=await r.json();
+  const n=j.city||j.locality||'';return n&&!/ocean|sea$/i.test(n)?{name:n,country:j.countryName||''}:null;}catch(e){return null;}}
 function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
 function goHome(tell){const h=myPlace();goPlace(h.name,h.lat,h.lon,h.country);cur.isHome=true;syncOpts();if(tell&&conv)conv.sendContextualUpdate(`The person went back to their own place, ${fullPlace()}.`);}
-function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);}
+function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);syncURL();}
+/* share links: the address holds the place and the record, so a copied link opens the same moment.
+   ?place=Lagos&country=Nigeria&lat=6.45&lon=3.39&record=sst  (a week joins when real data arrives) */
+function linkParams(){const q=new URLSearchParams();if(!cur.isHome){q.set('place',cur.place||'');if(cur.country)q.set('country',cur.country);q.set('lat',(+cur.lat).toFixed(2));q.set('lon',(+cur.lon).toFixed(2));}q.set('record',cur.rec);return q;}
+function syncURL(){if(!started)return;try{const keep=new URLSearchParams(location.search);const q=linkParams();['hero','split'].forEach(k=>keep.has(k)&&q.set(k,keep.get(k)));history.replaceState(null,'',`${location.pathname}?${q}`);}catch(_){}}
+async function copyLink(){const url=`${location.origin}/?${linkParams()}`;let ok=false;try{await navigator.clipboard.writeText(url);ok=true;}catch(_){}
+  const b=$('#shareBtn');if(b){const old=b.firstChild.textContent;b.firstChild.textContent=ok?'Link copied ':'Copy failed ';setTimeout(()=>b.firstChild.textContent=old,1600);}
+  $('#srStatus').textContent=ok?`Link to ${fullPlace()} copied.`:'The link could not be copied.';}
+const linkIn=new URLSearchParams(location.search);let linkUsed=false;
+function applyLink(){const r=linkIn.get('record');if(r&&REC[r]&&r!==cur.rec)tools.set_record({record_id:r});
+  const lat=parseFloat(linkIn.get('lat')),lon=parseFloat(linkIn.get('lon')),name=linkIn.get('place');
+  if(name&&isFinite(lat)&&isFinite(lon)&&Math.abs(lat)<=90&&Math.abs(lon)<=180)goPlace(name.slice(0,60),lat,lon,(linkIn.get('country')||'').slice(0,60));}
 /* the logo names the place: "Vaasa Jukebox" at a named place, "Earth Jukebox" before the start, while the world spins,
    at a point with no name (open sea, "Land at ...") or when the name is too long for the header. A text scramble marks the change.
    The button's accessible name does not change with it, so screen readers hear no scramble */
@@ -718,7 +743,9 @@ const tools={
  list_records:()=>JSON.stringify(Object.entries(REC).map(([id,r])=>({id,name:r.name,unit:r.unit}))),
  set_record:({record_id})=>{if(!REC[record_id])return 'error: unknown record id. Call list_records.';cur.rec=record_id;if(cur.instMode!=='random')cur.inst=REC[record_id].inst;loadBright(record_id);if(isReal())setGlobeTex(record_id);syncOpts();refresh();const sp=samplePoint();
    return JSON.stringify({mock:true,id:record_id,name:REC[record_id].name,unit:REC[record_id].unit,instrument:cur.inst,place:fullPlace(),water_name:REC[record_id].sea&&isLand(cur.lat,cur.lon)?sp.water:null,place_is_on_land:!!isLand(cur.lat,cur.lon)});},
- set_place:({place_name})=>{const n=findPlace(place_name);if(!n)return JSON.stringify({error:`Not in the prototype list. Known places: My place, ${Object.keys(PLACES).join(', ')}.`});if(n==='My place')goHome();else goPlace(n);const sp=samplePoint();return JSON.stringify({found:fullPlace(),lat:cur.lat,lon:cur.lon,water_name:REC[cur.rec].sea&&isLand(cur.lat,cur.lon)?sp.water:null});},
+ set_place:async({place_name})=>{const n=findPlace(place_name);if(n==='My place')goHome();else if(n)goPlace(n);else{const g=await geocode(place_name);
+   if(g.error)return JSON.stringify({error:g.error});if(g.options)return JSON.stringify({options:g.options,note:'More than one place has this name. Ask which one with offer_choices, then call set_place with the chosen name.'});
+   goPlace(g.name,g.lat,g.lon,g.country);}const sp=samplePoint();return JSON.stringify({found:fullPlace(),lat:cur.lat,lon:cur.lon,water_name:REC[cur.rec].sea&&isLand(cur.lat,cur.lon)?sp.water:null});},
  play_key:()=>{const sp=samplePoint(),s=seriesFor(cur.rec,sp.lat,sp.lon),b=s.slice(0,10).reduce((a,c)=>a+c,0)/10,n1=noteOf(b),n2=noteOf(b+.14);const pp=posOf(cur.lat,cur.lon);setTimeout(()=>tone(n1.hz,1,pp),300);setTimeout(()=>tone(n2.hz,1,pp),1500);setTimeout(drum,2700);
    return JSON.stringify({mock:true,place:fullPlace(),order:'normal note first, then a higher note, then a drum',normal_pitch_words:pitchWords(b),normal_value:val(b),normal_value_words:valueWords(b),higher_pitch_words:'a higher note',higher_value:val(b+.14),unit:REC[cur.rec].unit,drum_means:'higher than normal for that date',instrument:cur.inst,water_name:sp.water});},
  play_track:({start_year,end_year}={})=>{const a=Math.max(0,Math.min(44,(+start_year||1981)-1981)),b=Math.max(a,Math.min(44,(+end_year||2025)-1981));O.behaviour='focus';syncOpts();startTrack(a,b);
@@ -779,7 +806,7 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
     /* ask our server for a short-lived token (the API key stays on the server). If there is no server or no key, use the public agent id */
     let auth={agentId:AGENT_ID};try{const r=await fetch(`/api/token?type=${opts.textOnly?'ws':'webrtc'}`,{cache:'no-store'});if(r.ok){const j=await r.json();if(j.token)auth={conversationToken:j.token};else if(j.signedUrl)auth={signedUrl:j.signedUrl};}}catch(_){}
     const cfg={...auth,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
-      onConnect:()=>{setState('listening','Listening');offerChoices(['The sea','The air','The ice']);$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
+      onConnect:()=>{setState('listening','Listening');offerChoices(['The sea','The air','The ice']);if(linkIn.get('place')&&!linkUsed){linkUsed=true;applyLink();conv?.sendContextualUpdate(`The person opened a shared link. The current place is now ${fullPlace()}, latitude ${cur.lat.toFixed(1)}, longitude ${cur.lon.toFixed(1)}, record ${REC[cur.rec].name}. After your greeting, say that you start at ${fullPlace()}.`);}$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
         if(why!=='quiet'&&why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
       onModeChange:({mode})=>{if(mode==='speaking'){clearTimeout(captionT);$('#captions').style.opacity=1;if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);if(!capQ.length)scheduleFade();}},
       onMessage:({message,source})=>{if(source==='user'&&hiddenMsgs.has(message)){hiddenMsgs.delete(message);return;}caption(source==='user'?'you':'juke',message);}};
@@ -853,7 +880,7 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
 ['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
@@ -923,7 +950,10 @@ function exploreTo(lat,lon,sound){lat=Math.max(-80,Math.min(80,lat));lon=((lon+5
     if(bd<4){cur.place=best;cur.country=PLACES[best][2];}else if(isLand(lat,lon)){cur.place=`Land at ${Math.abs(lat).toFixed(0)}° ${lat>=0?'N':'S'}, ${Math.abs(lon).toFixed(0)}° ${lon>=0?'E':'W'}`;cur.country='';}else{cur.place=oceanName(lat,lon);cur.country='';}
     updPlayer();}
   if(sound&&now-lastTone>140){lastTone=now;audio();const sp=samplePoint();const x=base01(cur.rec,sp.lat,sp.lon);tintTo(cur.rec,x);tone(noteOf(x).hz,.3,posOf(lat,lon),.13);}}
-function endExplore(){lastName=0;exploreTo(cur.lat,cur.lon,false);syncOpts();refresh();cur.last=null;conv&&conv.sendContextualUpdate(`The person dragged the globe. The place under the needle is now ${fullPlace()} at latitude ${cur.lat.toFixed(1)}, longitude ${cur.lon.toFixed(1)}. Use it as the current place.`);}
+async function endExplore(){lastName=0;exploreTo(cur.lat,cur.lon,false);cur.last=null;const lat=cur.lat,lon=cur.lon;
+  const near=PLACES[cur.place]&&angDist(lat,lon,PLACES[cur.place][0],PLACES[cur.place][1])/D2R<.5;
+  if(isLand(lat,lon)&&!near){const g=await Promise.race([nameLand(lat,lon),new Promise(r=>setTimeout(()=>r(null),2500))]);if(g&&cur.lat===lat&&cur.lon===lon){cur.place=g.name;cur.country=g.country;}}
+  syncOpts();refresh();conv&&conv.sendContextualUpdate(`The person dragged the globe. The place under the needle is now ${fullPlace()} at latitude ${cur.lat.toFixed(1)}, longitude ${cur.lon.toFixed(1)}. Use it as the current place.`);}
 function wireDrag(el){el.style.touchAction='none';
   el.addEventListener('pointerdown',e=>{if(!started)return;drag={x:e.clientX,y:e.clientY,moved:false,lat:cur.lat,lon:cur.lon};try{el.setPointerCapture(e.pointerId);}catch(_){}el.style.cursor='grabbing';
     holdT=setTimeout(()=>{if(drag&&!drag.moved){drag=null;openPanel('#opts');openedAt=performance.now()+300;}},650);});
@@ -944,6 +974,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='r'&&!conv&&!connecting)talkAgain();
   if(k==='?'||(k==='/'&&e.shiftKey))openMenu('keys',true);else if(k==='/'){e.preventDefault();closePanels(true);$('#typeIn').focus();}
   if(k==='t'){renderLog();openMenu('log',true);}
+  if(k==='c')copyLink();
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
@@ -960,7 +991,7 @@ const HERO=[['Close your eyes.<br>Hear the <em>Earth</em>.',"Juke plays NASA's v
   const tmp=document.createElement('div');tmp.innerHTML=h[0];let i=0;$('#gt').innerHTML=[...tmp.childNodes].flatMap(n=>n.nodeType===3?n.textContent.split(/(\s+)/).filter(Boolean).map(w=>/^\s+$/.test(w)?w:`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${w}</span>`):n.nodeName==='BR'?[' <br>']:[`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${n.outerHTML}</span>`]).join('');$('#gt').setAttribute('aria-label',tmp.innerHTML.replace(/<br>/g,' ').replace(/<[^>]+>/g,''));$('#gd').textContent=h[1];}
 layoutStage();(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>{layoutStage();drawSky(true);requestAnimationFrame(()=>document.body.classList.add('ready'));});
 drawShortcuts();updSrc();setRecordColours('sst');loadBright('sst');
-window.__jb={get sky(){return skyStars},tools,layoutStage,drawSky,LOG,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
+window.__jb={get sky(){return skyStars},exploreTo,endExplore,tools,layoutStage,drawSky,LOG,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};
 </script>
 </body>
 </html>
