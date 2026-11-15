@@ -3,30 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Earth Jukebox: Listen to the planet</title>
+<title>Earth Jukebox: Close your eyes. Hear the Earth.</title>
 <meta name="description" content="Juke plays NASA&#39;s view of Earth as music and tells you what each sound means. Talk or type. Best with headphones.">
-<link rel="canonical" href="https://listentotheplanet.vercel.app/">
+<link rel="canonical" href="https://heartheearth.vercel.app/">
 <meta name="robots" content="index, follow">
 <meta name="theme-color" content="#0b0807">
 <meta name="color-scheme" content="dark">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Earth Jukebox">
-<meta property="og:title" content="Earth Jukebox: Listen to the planet">
+<meta property="og:title" content="Earth Jukebox: Close your eyes. Hear the Earth.">
 <meta property="og:description" content="Juke plays NASA&#39;s view of Earth as music and tells you what each sound means. Talk or type. Best with headphones.">
-<meta property="og:url" content="https://listentotheplanet.vercel.app/">
-<meta property="og:image" content="https://listentotheplanet.vercel.app/og.png">
+<meta property="og:url" content="https://heartheearth.vercel.app/">
+<meta property="og:image" content="https://heartheearth.vercel.app/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="The Earth Jukebox start screen: the heading Listen to the planet, a globe drawn in coloured lines, and the buttons Start talking and Type instead.">
+<meta property="og:image:alt" content="The Earth Jukebox start screen: the heading “Close your eyes. Hear the Earth.”, a globe drawn in coloured lines, and the buttons Start talking and Type instead.">
 <meta property="og:locale" content="en_GB">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Earth Jukebox: Listen to the planet">
+<meta name="twitter:title" content="Earth Jukebox: Close your eyes. Hear the Earth.">
 <meta name="twitter:description" content="Juke plays NASA&#39;s view of Earth as music and tells you what each sound means. Talk or type. Best with headphones.">
-<meta name="twitter:image" content="https://listentotheplanet.vercel.app/og.png">
-<meta name="twitter:image:alt" content="The Earth Jukebox start screen: the heading Listen to the planet, a globe drawn in coloured lines, and the buttons Start talking and Type instead.">
+<meta name="twitter:image" content="https://heartheearth.vercel.app/og.png">
+<meta name="twitter:image:alt" content="The Earth Jukebox start screen: the heading “Close your eyes. Hear the Earth.”, a globe drawn in coloured lines, and the buttons Start talking and Type instead.">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Earth Jukebox","url":"https://listentotheplanet.vercel.app/","description":"Juke plays NASA's view of Earth as music and tells you what each sound means. Talk or type. Best with headphones.","applicationCategory":"EducationalApplication","operatingSystem":"Any","browserRequirements":"A modern web browser with Web Audio. A microphone to talk, or a keyboard to type.","isAccessibleForFree":true,"inLanguage":"en","accessMode":["auditory","textual"],"accessModeSufficient":[["auditory"],["textual"]],"accessibilityFeature":["captions","transcript","keyboardNavigation"]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Earth Jukebox","url":"https://heartheearth.vercel.app/","description":"Juke plays NASA's view of Earth as music and tells you what each sound means. Talk or type. Best with headphones.","applicationCategory":"EducationalApplication","operatingSystem":"Any","browserRequirements":"A modern web browser with Web Audio. A microphone to talk, or a keyboard to type.","isAccessibleForFree":true,"inLanguage":"en","accessMode":["auditory","textual"],"accessModeSufficient":[["auditory"],["textual"]],"accessibilityFeature":["captions","transcript","keyboardNavigation"]}</script>
 <link rel="icon" id="fav" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M4 14v4m6-10v16m6-21v26m6-20v14m6-10v6' stroke='%235fd0e0' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
 @font-face{font-family:Geist;src:url(fonts/geist/Geist-Variable.woff2) format('woff2');font-weight:100 900;font-display:swap}
@@ -83,8 +83,11 @@ body:not(.ready) header .logo{opacity:0}header .logo{transition:opacity .6s var(
 #sky{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
 #orbBox.off,#globeBox.off{opacity:0;transform:translate(-50%,-50%) scale(.94);pointer-events:none}
 #orbBox canvas,#globeBox canvas{display:block;width:100%;height:100%}
-/* the realistic globe draws on a canvas 1.6 times its box, so the glow can fade out fully. The camera widens to match, so the globe keeps its size */
-#globeBox canvas{position:absolute;left:-30%;top:-30%;width:160%;height:160%;pointer-events:none}
+#globeBox canvas{position:relative}
+/* glow around the realistic globe: its own layer behind the globe, blurred 40 px so no edge is left, and screen-blended like light.
+   The gradient is brightest at the globe's rim (43.75% of the layer) and fades on a gaussian curve. --gt is the data tint */
+#globeGlow{position:absolute;inset:-30%;border-radius:50%;pointer-events:none;filter:blur(40px);mix-blend-mode:screen;will-change:opacity,transform;
+  background:radial-gradient(circle closest-side,rgb(var(--gt,243 231 216)/.4) 0,rgb(var(--gt,243 231 216)/.4) 43.75%,rgb(var(--gt,243 231 216)/.35) 50%,rgb(var(--gt,243 231 216)/.24) 56.25%,rgb(var(--gt,243 231 216)/.13) 62.5%,rgb(var(--gt,243 231 216)/.05) 68.75%,rgb(var(--gt,243 231 216)/.016) 75%,rgb(var(--gt,243 231 216)/0) 87.5%)}
 .pinLabel{position:fixed;pointer-events:none;font-size:12px;line-height:16px;white-space:nowrap;transform:translate(16px,-50%);text-shadow:0 0 8px var(--black);z-index:6}
 .pinLabel small{display:block;color:var(--mute);font-size:12px;line-height:16px}
 
@@ -193,6 +196,8 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 #gate.out{opacity:0}
 #gate .ghead{position:absolute;left:50%;top:96px;transform:translateX(-50%);width:min(680px,calc(100vw - 32px));text-align:center}
 #gate h1{font-weight:300;font-size:64px;line-height:72px;letter-spacing:-.045em}
+/* short, wide windows: the heading goes on one line. Still too tight: one size smaller */
+#gate.one .ghead{width:min(1040px,calc(100vw - 32px))}#gate.one h1 br{display:none}#gate.short h1{font-size:48px;line-height:56px}
 #gate h1 em{font-style:normal;color:var(--accent)}
 #gate .ghead p{color:var(--mute);font-size:16px;line-height:24px;margin:16px auto 0;max-width:480px}
 #gate .hp{display:inline-flex;gap:8px;align-items:flex-start;color:var(--mute);font-size:16px;line-height:24px;padding:12px 0}
@@ -258,7 +263,7 @@ body:not(.started) .hbtns{visibility:hidden;opacity:0}
 <canvas id="fx" aria-hidden="true"></canvas>
 <canvas id="sky" aria-hidden="true"></canvas>
 <div id="orbBox" aria-hidden="true"></div>
-<div id="globeBox" class="off" aria-hidden="true"></div>
+<div id="globeBox" class="off" aria-hidden="true"><div id="globeGlow"></div></div>
 <div class="pinLabel" id="pinLabel" hidden></div>
 
 <header inert>
@@ -517,25 +522,22 @@ function tintTo(k,x){const c=rampRGB(k,x);O.tintT.setRGB(...c);setAccentRGB(c);}
 
 /* ================= the realistic globe: the NASA picture, with optional depth ================= */
 const gbox=$('#globeBox');const vr=new THREE.WebGLRenderer({antialias:true,alpha:true});vr.setPixelRatio(Math.min(devicePixelRatio,2));gbox.appendChild(vr.domElement);
-const vscene=new THREE.Scene(),vcam=new THREE.PerspectiveCamera(2*Math.atan(1.6*Math.tan(16*Math.PI/180))*180/Math.PI,1,.1,50);vcam.position.set(0,0,6.6);
+const vscene=new THREE.Scene(),vcam=new THREE.PerspectiveCamera(32,1,.1,50);vcam.position.set(0,0,6.6);
 const texL=new THREE.TextureLoader();const texCache={};let landTex=null;
 function buildLandTex(){const c=document.createElement('canvas');c.width=720;c.height=360;const g=c.getContext('2d');const id=g.createImageData(720,360);for(let y=0;y<360;y++)for(let x=0;x<720;x++){const L=land[Math.floor(y/2)*360+Math.floor(x/2)];const i=(y*720+x)*4;id.data[i]=L?243:11;id.data[i+1]=L?231:8;id.data[i+2]=L?216:7;id.data[i+3]=255;}g.putImageData(id,0,0);landTex=new THREE.CanvasTexture(c);if(O.style.startsWith('real'))setGlobeTex(cur.rec);}
 const gMat=new THREE.ShaderMaterial({uniforms:{map:{value:null},depth:{value:0},light:{value:0}},
   vertexShader:`uniform sampler2D map;uniform float depth;varying vec2 vUv;varying vec3 vW;void main(){vUv=uv;vec3 c=texture2D(map,uv).rgb;float h=dot(c,vec3(.3,.59,.11));vec4 w=modelMatrix*vec4(position+normal*h*depth,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
   fragmentShader:`uniform sampler2D map;uniform float light;varying vec2 vUv;varying vec3 vW;void main(){vec3 c=texture2D(map,vUv).rgb;vec3 n=normalize(cross(dFdx(vW),dFdy(vW)));float l=max(dot(n,normalize(vec3(-.45,.55,1.))),0.);c*=mix(1.,.35+.85*l,light);gl_FragColor=vec4(c,1.);}`});
-/* soft glow around the realistic globe: a wide accent halo with a gaussian fade from the edge, so it reads as a blur with no hard line */
-const GLOW_R=.5;const glowTex=(()=>{const c=document.createElement('canvas');c.width=c.height=256;const g=c.getContext('2d');const gr=g.createRadialGradient(128,128,0,128,128,128);
-  for(let i=0;i<=40;i++){const r=i/40,d=(r-GLOW_R)/(r<GLOW_R?.1:.2),a=r>=.98?0:.4*Math.exp(-d*d);gr.addColorStop(r,`rgba(255,255,255,${a.toFixed(4)})`);}g.fillStyle=gr;g.fillRect(0,0,256,256);return new THREE.CanvasTexture(c);})();
-const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));glow.scale.setScalar(RO*2/GLOW_R);glow.renderOrder=-1;vscene.add(glow);
+const gGlow=$('#globeGlow');let gGlowTint='';
 const globe=new THREE.Mesh(new THREE.SphereGeometry(RO,256,128),gMat);vscene.add(globe);
 const gRing=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff}));const gRing2=new THREE.LineLoop(circ,new THREE.LineBasicMaterial({color:0xffffff,transparent:true}));vscene.add(gRing,gRing2);
 
 function setGlobeTex(k){const r=REC[k];if(r.map){if(!texCache[k])texCache[k]=texL.load(r.img);gMat.uniforms.map.value=texCache[k];}else gMat.uniforms.map.value=landTex;}
-function sizeGlobe(){const w=Math.round(gbox.clientWidth*1.6);vr.setSize(w,w,false);}
+function sizeGlobe(){const w=gbox.clientWidth;vr.setSize(w,w,false);}
 function drawGlobe(t,sW,sM){O.tint.lerp(O.tintT,.15);globe.rotation.set(O.glat*D2R,-(O.glon+90)*D2R,0,'XYZ');
   gMat.uniforms.depth.value=O.gdepth*.12;gMat.uniforms.light.value=O.gdepth;globe.scale.setScalar(reduce?1:1+sW*.025+sM*.02);
   const front=O.behaviour!=='spin';const pc=O.tint.clone().lerp(WHITE,.4);[gRing,gRing2].forEach((g,j)=>{g.visible=front;g.position.set(0,0,RO*1.004+O.gdepth*.12);g.lookAt(0,0,5);const ph=(t*1.4)%1;g.scale.setScalar(j===0?.075+sM*.03:.075+ph*.12);g.material.color.copy(pc);if(j)g.material.opacity=.7*(1-ph);});
-  glow.material.color.copy(O.tint);glow.material.opacity=.64+smoothM*.36;glow.scale.setScalar(RO*2/GLOW_R*(1+O.gdepth*.08));
+  {const hx=O.tint.getHexString(),tt=`${parseInt(hx.slice(0,2),16)} ${parseInt(hx.slice(2,4),16)} ${parseInt(hx.slice(4,6),16)}`;if(tt!==gGlowTint){gGlowTint=tt;gGlow.style.setProperty('--gt',tt);}gGlow.style.opacity=(.64+smoothM*.36).toFixed(3);gGlow.style.transform=`scale(${(1+O.gdepth*.08).toFixed(3)})`;}
   vr.render(vscene,vcam);placeLabel(front?{x:0,y:0}:null,gbox);}
 const isReal=()=>O.style.startsWith('real');
 function setGlobeStyle(s){if(!GLOBES[s])return;O.style=s;const real=isReal();box.classList.toggle('off',real);gbox.classList.toggle('off',!real);if(real){setGlobeTex(cur.rec);sizeGlobe();}loadBright(cur.rec);syncOpts();}
@@ -566,8 +568,9 @@ function frame(now){const t=(now-t0)/1000,dpr=Math.min(devicePixelRatio,2);
    On the start screen the heading and the buttons must also fit, so the orb is scaled down there and grows on Start. */
 function layoutStage(){const W=innerWidth,H=innerHeight,ph=W<=640,hdr=80,dockTop=H-24-48-8-40,capH=ph?72:88,k=.41;
   let app=Math.min(W*(ph?.96:.72),(dockTop-40-capH-40-H/2)/k,(H/2-hdr-40)/k);app=Math.max(160,Math.floor(app/8)*8);
-  const gh=$('#gate .ghead'),gc=$('#gate .gctl');const ghH=gh.offsetHeight,gcH=gc.offsetHeight;
-  let gate=Math.min(app,(H/2-hdr-40-ghH-40)/k,(H-24-gcH-40-H/2)/k);gate=Math.max(120,gate);
+  const gt=$('#gate'),gh=$('#gate .ghead'),gc=$('#gate .gctl');gt.classList.toggle('one',H<760&&W>=1100);gt.classList.remove('short');
+  const fit=()=>Math.min(app,(H/2-hdr-40-gh.offsetHeight-40)/k,(H-24-gc.offsetHeight-40-H/2)/k);let gate=fit();if(gate<160&&!ph){gt.classList.add('short');gate=fit();}
+  const ghH=gh.offsetHeight;gate=Math.max(120,gate);
   const R=document.documentElement.style;R.setProperty('--orb',app+'px');R.setProperty('--gs',(gate/app).toFixed(3));
   gh.style.top=Math.max(hdr+16,Math.round(H/2-gate*k-40-ghH))+'px';gc.style.top=Math.round(H/2+gate*k+40)+'px';
   sizeOrb();sizeGlobe();if(started)layoutCaptions();}
@@ -899,13 +902,14 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(ar){e.preventDefault();clearInterval(trackTimer);trackTimer=null;stopSpinSound();exploreTo(cur.lat+ar[0],cur.lon+ar[1],true);clearTimeout(window.__arT);window.__arT=setTimeout(endExplore,500);}});
 
 /* start screen: four versions of the heading to choose from, ?hero=1 to ?hero=4 */
-const HERO=[['Listen to the <em>planet</em>.',"Juke plays NASA's view of Earth as music and tells you what each sound means. We start where you are."],
+const HERO=[['Close your eyes.<br>Hear the <em>Earth</em>.',"Juke plays NASA's view of Earth as music and tells you what each sound means. We start where you are."],
  ['Talk to the <em>planet</em>.','Ask Juke about the sea, the air or the ice. You hear NASA data as music, and Juke explains every note.'],
  ['Hear your place <em>change</em>.','One note for each year since 1981, from NASA pictures of Earth. Juke starts where you are and explains what you hear.'],
- ['Earth, played as <em>music</em>.','Talk with Juke, pick the sea, the air or the ice, and hear how your part of the world changed.']];
+ ['Earth, played as <em>music</em>.','Talk with Juke, pick the sea, the air or the ice, and hear how your part of the world changed.'],
+ ['Listen to the <em>planet</em>.',"Juke plays NASA's view of Earth as music and tells you what each sound means. We start where you are."]];
 {const h=HERO[(+new URLSearchParams(location.search).get('hero')||1)-1]||HERO[0];
   /* split the heading into words so they arrive one after another, like Linear's hero */
-  const tmp=document.createElement('div');tmp.innerHTML=h[0];let i=0;$('#gt').innerHTML=[...tmp.childNodes].flatMap(n=>n.nodeType===3?n.textContent.split(/(\s+)/).filter(Boolean).map(w=>/^\s+$/.test(w)?w:`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${w}</span>`):[`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${n.outerHTML}</span>`]).join('');$('#gt').setAttribute('aria-label',tmp.textContent);$('#gd').textContent=h[1];}
+  const tmp=document.createElement('div');tmp.innerHTML=h[0];let i=0;$('#gt').innerHTML=[...tmp.childNodes].flatMap(n=>n.nodeType===3?n.textContent.split(/(\s+)/).filter(Boolean).map(w=>/^\s+$/.test(w)?w:`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${w}</span>`):n.nodeName==='BR'?[' <br>']:[`<span class="rv" style="--d:${(.04+(i++)*.04).toFixed(2)}s">${n.outerHTML}</span>`]).join('');$('#gt').setAttribute('aria-label',tmp.innerHTML.replace(/<br>/g,' ').replace(/<[^>]+>/g,''));$('#gd').textContent=h[1];}
 layoutStage();(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>{layoutStage();drawSky(true);requestAnimationFrame(()=>document.body.classList.add('ready'));});
 drawShortcuts();updSrc();setRecordColours('sst');loadBright('sst');
 window.__jb={get sky(){return skyStars},tools,layoutStage,drawSky,LOG,S,O,cur,setGlobeStyle,openPanel,openMenu,endConv,caption,closePanels,selectTab,download,renderProg,reveal,get prog(){return prog},get layout(){return layout},set layout(v){layout=v;applyLayout();}};

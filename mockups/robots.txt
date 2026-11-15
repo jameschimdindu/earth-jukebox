@@ -5,4 +5,4 @@ Disallow: /jukebox.html
 Disallow: /orb-pins.html
 Disallow: /orb-test.html
 
-Sitemap: https://listentotheplanet.vercel.app/sitemap.xml
+Sitemap: https://heartheearth.vercel.app/sitemap.xml
