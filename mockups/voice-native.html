@@ -736,7 +736,7 @@ function showLine(who,text,again){const c=$('#captions');c.style.opacity=1;const
 function scheduleFade(ms=6000){clearTimeout(captionT);captionT=setTimeout(()=>{if(!$('#againBtn'))$('#captions').style.opacity=0;},ms);}
 /* Juke's voice model uses stage directions in square brackets, such as [enthusiastically]. They shape the voice and are never shown */
 const clean=t=>String(t).replace(/\[[^\]]*\]\s*/g,'').replace(/\s{2,}/g,' ').trim();
-function caption(who,text,again){text=clean(text);if(!text)return;if(who==='you'&&offered)offerChoices(null);clearTimeout(capTimer);capQ=[];clearTimeout(captionT);
+function caption(who,text,again){text=clean(text);if(!text)return;if(who==='you'&&offered&&text!==lastSent)offerChoices(null);clearTimeout(capTimer);capQ=[];clearTimeout(captionT);
   LOG.push({who,text});if(LOG.length>200)LOG.shift();if(!$('#menu').hidden&&menuView==='log')renderLog();$('#srCap').textContent=`${who==='you'?'You':'Juke'}: ${text}`;
   if(who==='you')activity();if(who==='juke'&&/\b(19[89]\d|20[0-2]\d)\b/.test(text))flashYear();
   if(again||who==='you'){showLine(who,text,again);if(!again)scheduleFade();return;}
@@ -764,7 +764,7 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
     /* ask our server for a short-lived token (the API key stays on the server). If there is no server or no key, use the public agent id */
     let auth={agentId:AGENT_ID};try{const r=await fetch(`/api/token?type=${opts.textOnly?'ws':'webrtc'}`,{cache:'no-store'});if(r.ok){const j=await r.json();if(j.token)auth={conversationToken:j.token};else if(j.signedUrl)auth={signedUrl:j.signedUrl};}}catch(_){}
     const cfg={...auth,clientTools:tools,dynamicVariables:{home_place:fullPlace(),home_lat:String(cur.lat.toFixed(2)),home_lon:String(cur.lon.toFixed(2))},
-      onConnect:()=>{setState('listening','Listening');if(!LOG.length)offerChoices(['The sea','The air','The ice']);$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
+      onConnect:()=>{setState('listening','Listening');offerChoices(['The sea','The air','The ice']);$('#endBtn').firstChild.textContent='End the conversation ';},onDisconnect:()=>{const why=endedBy;conv=null;cancelAnimationFrame(raf);S.user=S.agent=0;setState('idle','The conversation has paused');$('#endBtn').firstChild.textContent='Talk again ';
         if(why==='quiet')caption('juke','I paused because it was quiet.',true);else if(why!=='you'&&why!=='voice')caption('juke','Our conversation stopped.',true);},onError:e=>{console.error(e);setState('idle','Something went wrong. Reload the page to try again.');},
       onModeChange:({mode})=>{if(mode==='speaking'){clearTimeout(captionT);$('#captions').style.opacity=1;if(!warnedAt)activity();setState('speaking','Juke is talking');music.gain.setTargetAtTime(.25,AC.currentTime,.1);}else{setState('listening','Listening');music.gain.setTargetAtTime(1,AC.currentTime,.1);if(!capQ.length)scheduleFade();}},
       onMessage:({message,source})=>caption(source==='user'?'you':'juke',message)};
@@ -774,7 +774,7 @@ async function start(opts={}){if(connecting)return;connecting=true;lastOpts=opts
       if(S.mode==='listening'){if(S.user>.12){S.userSpoke=1;quietSince=performance.now();}else if(S.userSpoke&&performance.now()-quietSince>700){S.userSpoke=0;setState('processing','Thinking');}}raf=requestAnimationFrame(loop);};loop();
   }catch(e){console.error(e);connecting=false;if(!opts.textOnly&&/permission|notallowed|denied/i.test(String(e&&(e.name||e.message)))){caption('juke','The microphone is blocked, so we can type. Use the field at the bottom.');start({textOnly:true});return;}
     if(cur.voice&&/voice/i.test(String(e.message))){caption('juke','That voice did not work, so I went back to my usual voice.');cur.voice='';syncOpts();start(opts);return;}caption('juke','I could not connect: '+(e.message||e));}}
-function send(text){if(!text.trim())return;caption('you',text);if(conv)conv.sendUserMessage(text);else{pending.push(text);if(!connecting)caption('juke','We are paused. Talk again, and I will read your message.',true);}}
+let lastSent='';function send(text){if(!text.trim())return;lastSent=clean(text);if(offered)offerChoices(null);caption('you',text);if(conv)conv.sendUserMessage(text);else{pending.push(text);if(!connecting)caption('juke','We are paused. Talk again, and I will read your message.',true);}}
 $('#start').onclick=()=>start();$('#startTyping').onclick=()=>start({textOnly:true});
 box.addEventListener('click',()=>{if(!started)start();});
 $('#typeBox').onsubmit=e=>{e.preventDefault();const v=$('#typeIn').value;send(v);$('#typeIn').value='';if(!conv&&!connecting&&v.trim()&&started)talkAgain();};
