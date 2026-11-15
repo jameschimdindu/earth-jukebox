@@ -301,6 +301,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
         <button role="menuitem" data-act="then" id="thenBtn">Then and now <kbd>Y</kbd></button>
         <button role="menuitem" data-act="two" id="twoBtn">Compare with My place <kbd>K</kbd></button>
         <button role="menuitem" data-act="share" id="shareBtn">Copy a link to this place <kbd>C</kbd></button>
+        <button role="menuitem" data-act="postcard" id="postcardBtn">Send a sound postcard <kbd>P</kbd></button>
         <div class="sep" role="separator"></div>
         <button role="menuitem" data-act="end" id="endBtn">End the conversation <kbd>R</kbd></button>
       </div>
@@ -327,6 +328,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
           <kbd>Y</kbd><span>Then and now: the same week a year apart (sea records)</span>
           <kbd>R</kbd><span>Talk again after a pause</span>
           <kbd>L</kbd><span>Download what is playing</span>
+          <kbd>P</kbd><span>Send a sound postcard: the sound, its story and a link</span>
           <kbd>O</kbd><span>Options</span>
           <kbd>N</kbd><span>The record</span>
           <kbd>/</kbd><span>Type to Juke</span>
@@ -845,13 +847,14 @@ function todayUI(){if(conv){send(TODAY_ASK);return;}const r=playToday();if(r.err
 let twoTimer=null;
 async function resolvePlace(q){const n=findPlace(q);if(n==='My place'){const h=myPlace();return{name:h.name,country:h.country,lat:h.lat,lon:h.lon};}
   if(n){const [lat,lon,country]=PLACES[n];return{name:n,country,lat,lon};}const g=await geocode(q);if(g.error||g.options)return g;return{name:g.name,country:g.country,lat:g.lat,lon:g.lon};}
+const nameOf2=p=>p.country?`${p.name}, ${p.country}`:p.name;
 async function twoPlaces({place_a,place_b}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[rec].name} has no real data loaded.`};
   const a=place_a?await resolvePlace(place_a):{name:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon},b=await resolvePlace(place_b||'My place');
   for(const p of [a,b]){if(p.error)return{error:p.error};if(p.options)return{options:p.options,note:'More than one place has this name. Ask which one with offer_choices.'};}
   const sa=samplePoint(rec,a.lat,a.lon),sb=samplePoint(rec,b.lat,b.lon),A=seriesFor(rec,sa.lat,sa.lon),B=seriesFor(rec,sb.lat,sb.lon),n=steps(rec);
   if(A.every(v=>v==null)||B.every(v=>v==null))return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no data near one of these places.`};
   clearInterval(trackTimer);trackTimer=null;clearInterval(twoTimer);stopSpinSound();TN.on=false;
-  const L={az:-60,el:0},R={az:60,el:0};let i=0;setProg({type:'two',from:0,to:n-1});
+  const L={az:-60,el:0},R={az:60,el:0};let i=0;setProg({type:'two',from:0,to:n-1,a:{name:nameOf2(a),slat:sa.lat,slon:sa.lon},b:{name:nameOf2(b),slat:sb.lat,slon:sb.lon}});
   twoTimer=setInterval(()=>{if(i>=n){clearInterval(twoTimer);twoTimer=null;setIcon();return;}if(A[i]!=null)tone(noteOf(A[i]).hz,.4,L);if(B[i]!=null)setTimeout(()=>tone(noteOf(B[i]).hz,.4,R),120);trackI=i;updPlayer();i++;},hasReal(rec)?300:380);
   const vals=(S)=>S.filter(x=>x!=null).map(x=>val(x,rec));
   const va=vals(A),vb=vals(B),mean=v=>+(v.reduce((x,y)=>x+y,0)/v.length).toFixed(rec==='bio'?3:1);
@@ -871,24 +874,43 @@ $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(pla
 
 /* ================= download exactly what is playing ================= */
 const slug=s=>s.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-async function renderProg(p){const sr=44100;let steps=[];
+async function renderProg(p,info){const sr=44100;let steps=[];
   if(p.type==='track'){const gap=hasReal(p.rec)?.3:.38;for(let i=p.from;i<=p.to;i++){const r=readingFor(p.rec,p.lat,p.lon,i);if(r.x!=null)steps.push({t:(i-p.from)*gap,f:r.frequency_hz,dur:.4,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}}
   else if(p.type==='then'){const sp=samplePoint(p.rec,p.lat,p.lon),s=realSeries(p.rec,sp.lat,sp.lon),el=posOf(p.lat,p.lon).el,hz=k=>s&&s.t[k]!=null?noteOf(toX(p.rec,s.t[k])).hz:null;
     [[0,p.j-1,-60],[.45,p.j,-60],[.9,p.j+1,-60],[2,p.i-1,60],[2.45,p.i,60],[2.9,p.i+1,60]].forEach(([t,k,az])=>{const f=hz(k);if(f)steps.push({t,f,dur:.42,pos:{az,el},drum:false,vol:.16});});
     [hz(p.j),hz(p.i)].forEach(f=>{if(f)steps.push({t:4,f,dur:1.4,pos:{az:0,el},drum:false,vol:.14});});}
+  else if(p.type==='two'){const gap=hasReal(p.rec)?.3:.38;const A=seriesFor(p.rec,p.a.slat,p.a.slon),B=seriesFor(p.rec,p.b.slat,p.b.slon);
+    for(let i=p.from;i<=p.to;i++){if(A[i]!=null)steps.push({t:(i-p.from)*gap,f:noteOf(A[i]).hz,dur:.4,pos:{az:-60,el:0},drum:false,vol:.15});if(B[i]!=null)steps.push({t:(i-p.from)*gap+.12,f:noteOf(B[i]).hz,dur:.4,pos:{az:60,el:0},drum:false,vol:.15});}}
   else if(p.type==='year'){const r=readingFor(p.rec,p.lat,p.lon,p.i);if(r.x!=null)steps.push({t:0,f:r.frequency_hz,dur:.8,pos:posOf(p.lat,p.lon),drum:r.drum,vol:.16});}
   else{const n=Math.ceil(360/p.speed/.42);for(let k=0;k<n;k++){const lon=p.startLon+p.dir*p.speed*.42*k;steps.push({t:k*.42,f:noteOf(base01(p.rec,p.lat,lon)??0).hz,dur:.35,pos:{az:((p.dir*p.speed*.42*k+180)%360)-180,el:Math.max(-40,Math.min(40,p.lat*.45))},drum:false,vol:.12});}}
   const len=(steps.length?steps[steps.length-1].t:0)+2;const ctx=new OfflineAudioContext(2,Math.ceil(len*sr),sr);const out=ctx.createGain();out.connect(ctx.destination);
   steps.forEach(s=>{voiceOn(ctx,out,s.t,s.f,s.dur,s.pos,s.vol,p.inst);if(s.drum)drumOn(ctx,out,s.t);});const buf=await ctx.startRendering();
   const L=buf.getChannelData(0),R=buf.getChannelData(1),n=L.length,ab=new ArrayBuffer(44+n*4),v=new DataView(ab);const ws=(o,s)=>[...s].forEach((c,i)=>v.setUint8(o+i,c.charCodeAt(0)));
-  ws(0,'RIFF');v.setUint32(4,36+n*4,true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,sr,true);v.setUint32(28,sr*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,n*4,true);
-  for(let i=0;i<n;i++){v.setInt16(44+i*4,Math.max(-1,Math.min(1,L[i]))*32767,true);v.setInt16(46+i*4,Math.max(-1,Math.min(1,R[i]))*32767,true);}return new Blob([ab],{type:'audio/wav'});}
+  /* round 74: the postcard text goes into the file itself (a RIFF LIST INFO chunk: title, artist, comment, date, software) */
+  let list=null;if(info){const enc=new TextEncoder(),parts=Object.entries(info).filter(([,t])=>t).map(([id,t])=>{let b=enc.encode(t+'\0');if(b.length%2)b=new Uint8Array([...b,0]);return[id,b];});
+    const size=4+parts.reduce((a,[,b])=>a+8+b.length,0);list=new Uint8Array(8+size);const lv=new DataView(list.buffer);const put=(o,str)=>[...str].forEach((c,i)=>lv.setUint8(o+i,c.charCodeAt(0)));
+    put(0,'LIST');lv.setUint32(4,size,true);put(8,'INFO');let o=12;for(const [id,b] of parts){put(o,id);lv.setUint32(o+4,b.length,true);list.set(b,o+8);o+=8+b.length;}}
+  ws(0,'RIFF');v.setUint32(4,36+n*4+(list?list.length:0),true);ws(8,'WAVE');ws(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,2,true);v.setUint32(24,sr,true);v.setUint32(28,sr*4,true);v.setUint16(32,4,true);v.setUint16(34,16,true);ws(36,'data');v.setUint32(40,n*4,true);
+  for(let i=0;i<n;i++){v.setInt16(44+i*4,Math.max(-1,Math.min(1,L[i]))*32767,true);v.setInt16(46+i*4,Math.max(-1,Math.min(1,R[i]))*32767,true);}return new Blob(list?[ab,list]:[ab],{type:'audio/wav'});}
 async function download(){const p=prog||{type:'track',rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,from:0,to:steps(cur.rec)-1};
-  const what=p.type==='then'?`then-and-now-${slug(stepLabel(p.rec,p.j))}-${slug(stepLabel(p.rec,p.i))}`:p.type==='spin'?`spin-${Math.round(Math.abs(p.lat))}${p.lat>=0?'n':'s'}-${p.speed}deg-s-${p.dir>0?'east':'west'}`:p.type==='year'?slug(stepLabel(p.rec,p.i)):`${slug(stepLabel(p.rec,p.from))}-to-${slug(stepLabel(p.rec,p.to))}`;
+  const what=p.type==='two'?`${slug(p.a.name)}-and-${slug(p.b.name)}`:p.type==='then'?`then-and-now-${slug(stepLabel(p.rec,p.j))}-${slug(stepLabel(p.rec,p.i))}`:p.type==='spin'?`spin-${Math.round(Math.abs(p.lat))}${p.lat>=0?'n':'s'}-${p.speed}deg-s-${p.dir>0?'east':'west'}`:p.type==='year'?slug(stepLabel(p.rec,p.i)):`${slug(stepLabel(p.rec,p.from))}-to-${slug(stepLabel(p.rec,p.to))}`;
   const name=`earth-jukebox_${slug(REC[p.rec].name)}_${slug(p.type==='spin'?'world':fullPlace(p))}_${what}_${slug(p.inst)}.wav`;
   const blob=await renderProg(p);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
   $('#srStatus').textContent=`Downloaded ${name}`;caption('juke',`Saved ${name}.`);}
 $('#dlBtn').onclick=download;
+/* Sound postcard (round 74): the sound that is playing (or the whole track here), with its story inside the file and a link back */
+async function postcard(){const p=prog||{type:'track',rec:cur.rec,place:cur.place,country:cur.country,lat:cur.lat,lon:cur.lon,inst:cur.inst,from:0,to:steps(cur.rec)-1};
+  const rec=p.rec||cur.rec,r=REC[rec],where=p.type==='two'?`${p.a.name} and ${p.b.name}`:p.type==='spin'?'around the world':fullPlace(p);
+  const when=p.type==='then'?`${stepLabel(rec,p.j,true)} and ${stepLabel(rec,p.i,true)}`:p.type==='year'?stepLabel(rec,p.i,true):p.type==='spin'?'':`${stepLabel(rec,p.from??0,true)} to ${stepLabel(rec,p.to??steps(rec)-1,true)}`;
+  const kind=p.type==='then'?'Then and now':p.type==='two'?'Two places':p.type==='spin'?'A spin':'A track';
+  const title=`${kind}: ${r.name}, ${where}`,link=`${location.origin}/?${linkParams()}`;
+  const text=`${title}${when?`, ${when}`:''}. One note is ${/^\d/.test(noteUnit(rec))?noteUnit(rec):'one '+noteUnit(rec)}; a higher note is a higher value.${p.type==='two'?' The first place is in the left ear, the second in the right.':p.type==='then'?' The earlier week is in the left ear, the later week in the right.':''} Data: NASA Scientific Visualization Studio, record ${r.svs}. Listen: ${link}`;
+  const blob=await renderProg(p,{INAM:title,IART:'Earth Jukebox',ICMT:text,ICRD:new Date().toISOString().slice(0,10),ISFT:'Earth Jukebox (heartheearth.vercel.app)'});
+  const name=`earth-jukebox-postcard_${slug(r.name)}_${slug(where)}.wav`,file=new File([blob],name,{type:'audio/wav'});
+  try{if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title,text});$('#srStatus').textContent='Postcard shared.';return;}}catch(e){if(e&&e.name==='AbortError')return;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  let copied=false;try{await navigator.clipboard.writeText(text);copied=true;}catch(_){}
+  const msg=`Saved the postcard ${name}${copied?', and copied its text and link':''}.`;$('#srStatus').textContent=msg;caption('juke',msg);}
 
 /* ================= places and location ================= */
 const findPlace=q=>{q=(q||'').toLowerCase().replace(/^the /,'').replace(/,.*$/,'').trim();if(/^(my place|home|here)$/.test(q))return 'My place';return Object.keys(PLACES).find(k=>k.toLowerCase()===q)||Object.keys(PLACES).find(k=>k.toLowerCase().includes(q)&&q.length>2);};
@@ -1108,7 +1130,7 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='today'){closeMenu(true);todayUI();return;}if(a==='two'){closeMenu(true);twoPlacesUI();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='today'){closeMenu(true);todayUI();return;}if(a==='two'){closeMenu(true);twoPlacesUI();return;}if(a==='postcard'){closeMenu(true);postcard();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
 ['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
@@ -1243,6 +1265,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='y')thenAndNowUI();
   if(k==='d')todayUI();
   if(k==='k')twoPlacesUI();
+  if(k==='p')postcard();
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
