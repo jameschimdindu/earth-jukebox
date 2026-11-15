@@ -274,7 +274,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
 <div class="pinLabel" id="pinLabel" hidden></div>
 
 <header inert>
-  <button class="logo" id="logoBtn" aria-label="Go to My place" aria-keyshortcuts="H"><svg viewBox="0 0 32 32" aria-hidden="true"><g id="logoBars" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" x2="4" y1="14" y2="18"/><line x1="10" x2="10" y1="8" y2="24"/><line x1="16" x2="16" y1="3" y2="29"/><line x1="22" x2="22" y1="9" y2="23"/><line x1="28" x2="28" y1="13" y2="19"/></g></svg><b>Earth</b><span>Jukebox</span></button>
+  <button class="logo" id="logoBtn" aria-label="Go to My place" aria-keyshortcuts="H"><svg viewBox="0 0 32 32" aria-hidden="true"><g id="logoBars" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="4" x2="4" y1="14" y2="18"/><line x1="10" x2="10" y1="8" y2="24"/><line x1="16" x2="16" y1="3" y2="29"/><line x1="22" x2="22" y1="9" y2="23"/><line x1="28" x2="28" y1="13" y2="19"/></g></svg><b id="logoWord">Earth</b><span>Jukebox</span></button>
   <div class="hbtns">
     <button class="pill" id="optsBtn" aria-haspopup="dialog" aria-expanded="false" aria-controls="opts" aria-keyshortcuts="O"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Options<kbd>O</kbd></button>
     <button class="pill noKey" id="moreBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="menu"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>More</button>
@@ -692,6 +692,19 @@ const findPlace=q=>{q=(q||'').toLowerCase().replace(/^the /,'').replace(/,.*$/,'
 function goPlace(name,lat,lon,country){if(lat===undefined){[lat,lon,country]=PLACES[name];}cur.place=name;cur.country=country||'';cur.lat=lat;cur.lon=lon;cur.isHome=false;O.behaviour='focus';stopSpinSound();refresh();syncOpts();}
 function goHome(tell){const h=myPlace();goPlace(h.name,h.lat,h.lon,h.country);cur.isHome=true;syncOpts();if(tell&&conv)conv.sendContextualUpdate(`The person went back to their own place, ${fullPlace()}.`);}
 function refresh(){updPlayer();updSrc();drawShortcuts();setRecordColours(cur.rec);}
+/* the logo names the place: "Vaasa Jukebox" at a named place, "Earth Jukebox" before the start, while the world spins,
+   at a point with no name (open sea, "Land at ...") or when the name is too long for the header. A text scramble marks the change.
+   The button's accessible name does not change with it, so screen readers hear no scramble */
+const logoWordFor=()=>{const p=cur.place||'';return(!started||spinTimer||!p||/^Land at/.test(p)||p===oceanName(cur.lat,cur.lon)||p.length>16)?'Earth':p;};
+let logoShown='Earth',logoWant='Earth',logoSince=0,logoRaf=0;
+function scrambleLogo(to){const el=$('#logoWord'),from=logoShown;logoShown=to;cancelAnimationFrame(logoRaf);
+  if(reduce){el.textContent=to;return;}
+  const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ',n=Math.max(from.length,to.length),t0=performance.now(),dur=520;
+  const step=now=>{const k=Math.min(1,(now-t0)/dur),len=Math.round(from.length+(to.length-from.length)*Math.min(1,k*1.6));let out='';
+    for(let i=0;i<len;i++){const settle=.25+.75*(i/Math.max(1,n));out+=k>=settle?(to[i]||''):(to[i]===' '?' ':A[Math.floor(Math.random()*26)]);}
+    el.textContent=k>=1?to:out;if(k<1)logoRaf=requestAnimationFrame(step);};
+  logoRaf=requestAnimationFrame(step);}
+setInterval(()=>{const w=logoWordFor(),now=performance.now();if(w!==logoWant){logoWant=w;logoSince=now;return;}if(w!==logoShown&&now-logoSince>300)scrambleLogo(w);},100);
 async function locate(){if(!navigator.geolocation)return null;
   const pos=await new Promise(res=>{navigator.geolocation.getCurrentPosition(p=>res(p),()=>res(null),{timeout:7000,maximumAge:6e5});setTimeout(()=>res(null),8000);});if(!pos)return null;
   const {latitude:lat,longitude:lon}=pos.coords;let name=null,country='';
