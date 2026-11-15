@@ -300,6 +300,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
         <button role="menuitem" data-act="today" id="todayBtn">Today <kbd>D</kbd></button>
         <button role="menuitem" data-act="then" id="thenBtn">Then and now <kbd>Y</kbd></button>
         <button role="menuitem" data-act="two" id="twoBtn">Compare with My place <kbd>K</kbd></button>
+        <button role="menuitem" data-act="moments" id="momentsBtn">Moments <kbd>M</kbd></button>
         <button role="menuitem" data-act="share" id="shareBtn">Copy a link to this place <kbd>C</kbd></button>
         <button role="menuitem" data-act="postcard" id="postcardBtn">Send a sound postcard <kbd>P</kbd></button>
         <div class="sep" role="separator"></div>
@@ -324,6 +325,7 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
           <kbd>Space</kbd><span>Play or pause</span>
           <kbd>H</kbd><span>Go to My place</span>
           <kbd>D</kbd><span>Today: the newest note at this place</span>
+          <kbd>M</kbd><span>Moments: the highest, the lowest and the biggest change at this place</span>
           <kbd>K</kbd><span>Compare this place with My place: this place on the left, My place on the right</span>
           <kbd>Y</kbd><span>Then and now: the same week a year apart (sea records)</span>
           <kbd>R</kbd><span>Talk again after a pause</span>
@@ -404,7 +406,7 @@ const REC={
  air:{name:'Near-surface air temperature',short:'the air',unit:'degrees Celsius',sea:false,min:-40,max:40,svs:5147,img:'data/nasa/air.jpg',map:true,ramp:['#8a7cff','#5fc0f0','#f4d36a','#ff6a50'],inst:'flute'},
  ice:{name:'Polar sea ice',short:'the ice',unit:'percent ice cover',sea:true,min:0,max:100,svs:5099,img:'data/nasa/ice.jpg',map:false,ramp:['#6fa8d0','#a8d8f0','#e6f4fb','#ffffff'],inst:'glass bells'},
  bio:{name:'Global biosphere',short:'plankton in the sea',unit:'milligrams of chlorophyll per cubic metre',sea:true,min:-2,max:2,log:true,svs:5075,img:'data/nasa/bio.jpg',map:true,ramp:['#d0b050','#9fd06a','#4fcf8a','#3fb0a0'],inst:'marimba'},
- fire:{name:'Active fires',short:'fires',unit:'fire dots in this square over 5 days',sea:false,min:0,max:60,svs:5113,img:'data/nasa/fire.jpg',map:true,ramp:['#ff4a3c','#ff8a5c','#ffb070','#ffe08a'],inst:'synth pad'},
+ fire:{name:'Active fires',short:'fires',unit:'fire dots in this square over 5 days',sea:false,min:0,max:130,svs:5113,img:'data/nasa/fire.jpg',map:true,ramp:['#ff4a3c','#ff8a5c','#ffb070','#ffe08a'],inst:'synth pad'},
 };
 /* "Did you know?" facts. Only facts from NASA's own record pages (SVS). Facts worked out from the data at the person's place come with the pipeline */
 const FACTS={
@@ -866,6 +868,24 @@ async function twoPlaces({place_a,place_b}={}){const rec=cur.rec;if(!hasReal(rec
     say:`${nameOf(a)} is on the left and ${nameOf(b)} on the right. On average, ${d===0?'they are the same':(temp?`${hi} is ${Math.abs(d)} degrees ${rec==='ssta'?'further above normal':'warmer'}`:`${hi} has ${diffSay(rec,Math.abs(d))}`)}.`,
     note:'The two tracks play now, together. Say one short line, then stay quiet. When the person asks, say `say` in your own words.'};}
 function twoPlacesUI(){if(conv){send('Compare this place with My place, both at once.');return;}twoPlaces({}).then(r=>{if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}});}
+/* Moments (round 74): a playlist of three real moments at this place, picked from the data: the highest note, the lowest note,
+   and the biggest change from one note to the next. Each plays once, about a second apart */
+let momentTimers=[];
+function playMoments(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[rec].name} has no real data loaded.`};
+  const sp=samplePoint(),s=seriesFor(rec,sp.lat,sp.lon),idx=s.map((x,i)=>x==null?null:i).filter(i=>i!=null);
+  if(idx.length<4)return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has too little data near ${fullPlace()}.`};
+  let hi=idx[0],lo=idx[0],jump=null,jd=0;for(const i of idx){if(s[i]>s[hi])hi=i;if(s[i]<s[lo])lo=i;if(i>0&&s[i-1]!=null&&Math.abs(s[i]-s[i-1])>jd){jd=Math.abs(s[i]-s[i-1]);jump=i;}}
+  const temp=['sst','ssta','air'].includes(rec),hiName=rec==='ssta'?'the furthest above normal':temp?'the warmest':rec==='ice'?'the most ice':rec==='bio'?'the most plankton':'the most fire',
+    loName=rec==='ssta'?'the furthest below normal':temp?'the coldest':rec==='ice'?'the least ice':rec==='bio'?'the least plankton':'the least fire';
+  const pick=[[hi,hiName],[lo,loName]];if(jump!=null&&jump!==hi&&jump!==lo)pick.push([jump,'the biggest change from the note before']);
+  momentTimers.forEach(clearTimeout);clearInterval(trackTimer);trackTimer=null;stopSpinSound();
+  const out=pick.map(([i,name],k)=>{const r=readingFor(rec,cur.lat,cur.lon,i);momentTimers.push(setTimeout(()=>{tone(r.frequency_hz,.9,posOf(cur.lat,cur.lon));if(r.drum)drum();setProg({type:'year',i});updPlayer();},k*1300));
+    return{moment:name,when:stepLabel(rec,i,true),value:r.value,unit:r.unit,value_words:r.value_words,...(r.forecast?{forecast:r.forecast}:{})};});
+  $('#srStatus').textContent=`Moments at ${fullPlace()}: `+out.map(m=>`${m.moment}, ${m.when}, ${m.value} ${m.unit}`).join('; ')+'.';
+  setTimeout(()=>{if(conv)nudge('(Note from the app, not from the person.) The three moments have played. Say them now, one short sentence each, then ask what next.');},pick.length*1300+600);
+  return{place:fullPlace(),water_name:sp.water,record:REC[rec].name,moments:out,searched:`${stepLabel(rec,0,true)} to ${stepLabel(rec,steps(rec)-1,true)}`,
+    note:'The moments play now, in this order, about a second apart. Say one short line, then wait: the app tells you when they have played.'};}
+function momentsUI(){if(conv){send('Play the moments for this place.');return;}const r=playMoments();if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}}
 function thenAndNowUI(){if(!canThen(cur.rec)){const m=hasReal(cur.rec)?`Then and now needs a year of data. ${REC[cur.rec].name} covers about 15 days.`:`Then and now needs real data. ${REC[cur.rec].name} still uses sample values.`;$('#srStatus').textContent=m;if(!conv)caption('juke',m);return;}
   if(conv){send(THEN_ASK);return;}thenAndNow({});}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
@@ -968,6 +988,7 @@ async function locate(){if(!navigator.geolocation)return null;
 /* ================= client tools (mock data) ================= */
 const tools={
  play_today:()=>JSON.stringify(playToday()),
+ play_moments:()=>JSON.stringify(playMoments()),
  two_places:async(a)=>JSON.stringify(await twoPlaces(a||{})),
  then_and_now:async(a)=>{const r=thenAndNow(a||{});if(!r.error)await new Promise(ok=>setTimeout(ok,4600));return JSON.stringify(r);},
  offer_choices:({choice_1,choice_2,choice_3})=>{const l=[choice_1,choice_2,choice_3].map(x=>(x||'').trim()).filter(Boolean);if(l.length<2)return 'error: give two or three choices.';offerChoices(l);return `The choices are on screen as buttons 1 to ${l.length}. You have not spoken yet: now say aloud what you wanted to say, and your question. Do not skip your turn.`;},
@@ -1130,7 +1151,7 @@ document.querySelectorAll('[data-back]').forEach(b=>b.onclick=e=>{e.stopPropagat
 $('#moreBtn').onclick=e=>{e.stopPropagation();$('#menu').hidden?openMenu('main',e.detail===0):closePanels();};
 $('#optsBtn').onclick=e=>{e.stopPropagation();trayOpen()?closePanels():openPanel('#opts',e.detail===0);};
 document.addEventListener('click',e=>{if(performance.now()-openedAt<400)return;if(!$('#menu').hidden&&!e.target.closest('#menu,#moreBtn'))closeMenu();if(trayOpen()&&!e.target.closest('#opts,#optsBtn'))closeTray();});
-$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='today'){closeMenu(true);todayUI();return;}if(a==='two'){closeMenu(true);twoPlacesUI();return;}if(a==='postcard'){closeMenu(true);postcard();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
+$('#menu').addEventListener('click',e=>{const a=e.target.closest('[data-act]')?.dataset.act;if(!a)return;e.stopPropagation();const k=e.detail===0;if(a==='then'){closeMenu(true);thenAndNowUI();return;}if(a==='today'){closeMenu(true);todayUI();return;}if(a==='two'){closeMenu(true);twoPlacesUI();return;}if(a==='postcard'){closeMenu(true);postcard();return;}if(a==='moments'){closeMenu(true);momentsUI();return;}if(a==='src')openMenu('src',k);if(a==='keys')openMenu('keys',k);if(a==='log'){renderLog();openMenu('log',k);}if(a==='share')copyLink();if(a==='end'){closeMenu(true);conv||connecting?endConv('you'):talkAgain();}});
 $('#mv-main').addEventListener('keydown',e=>{const items=[...$('#mv-main').querySelectorAll('button')];const i=items.indexOf(document.activeElement);if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}if(e.key==='ArrowRight'&&document.activeElement.dataset.act&&document.activeElement.dataset.act!=='end'){e.preventDefault();document.activeElement.click();}});
 ['src','log','keys'].forEach(v=>$(`#mv-${v}`).addEventListener('keydown',e=>{if(e.key==='ArrowLeft'||e.key==='Backspace'){e.preventDefault();openMenu('main',true);$('#mv-main [data-act='+v+']').focus();}}));
 function updSrc(){const r=REC[cur.rec];const sp=samplePoint();$('#srcT').textContent=r.name;$('#srcMeta').textContent=`NASA Scientific Visualization Studio, SVS ${r.svs}, public domain`;
@@ -1266,6 +1287,7 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();
   if(k==='d')todayUI();
   if(k==='k')twoPlacesUI();
   if(k==='p')postcard();
+  if(k==='m')momentsUI();
   if(k==='l')download();if(k==='h')goHome(true);if(/^[1-3]$/.test(k))useShortcut(+k-1);
   if(k===' '&&!e.target.closest('button')){e.preventDefault();playPause();}
   const ar={arrowleft:[0,-6],arrowright:[0,6],arrowup:[4,0],arrowdown:[-4,0]}[k];
