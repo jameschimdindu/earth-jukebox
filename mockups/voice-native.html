@@ -743,12 +743,14 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
   plan.forEach(([t,k,pos])=>{const f=k>=0&&k<s.t.length?hz(k):null;if(f)setTimeout(()=>tone(f,.42,pos),t*1000);});
   setTimeout(()=>{const a=hz(j),b=hz(i);if(a)tone(a,1.4,C);if(b)tone(b,1.4,C);if(!same&&diff>0)drum();},4000);
   TN.timer=setTimeout(()=>{TN.on=false;if(prog&&prog.type==='then'){prog=null;updPlayer();setIcon();}},11000);
+  /* music first, then talk: when the comparison has played, ask Juke for the result */
+  setTimeout(()=>{if(conv&&TN.on)nudge(`(Note from the app, not from the person: the then and now sound has finished. Now say the result in one or two sentences: ${stepLabel(rec,j,true)} was ${tv} degrees Celsius, ${stepLabel(rec,i,true)} was ${nv} degrees Celsius, so now is ${words}. Do not give a cause. Then ask what next.)`);},5600);
   const words=same?`about the same: the difference, ${Math.abs(diff)} degrees, is smaller than the measured error of about 0.3 degrees`:`${Math.abs(diff)} degrees Celsius ${diff>0?'warmer':'cooler'} than the same week a year before`;
   $('#srStatus').textContent=`Then and now at ${fullPlace()}. ${stepLabel(rec,j,true)}: ${tv} degrees. ${stepLabel(rec,i,true)}: ${nv} degrees. ${same?'About the same.':`${Math.abs(diff)} degrees ${diff>0?'warmer':'cooler'}.`}`;
   updPlayer();setIcon();
   return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,
     sound:'then on the left, now on the right, each as three notes, then both notes together; a drum if now is warmer',
-    note:'Now say the result in one or two sentences: both weeks, both values and difference_words. One year apart is not a trend. Do not give a cause.'};}
+    note:'The sound plays now for about 5 seconds. Say nothing now and call no other tool. The app will tell you when it ends; then say the result.'};}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
 /* the logo: pause, play again, or go home */
 $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
