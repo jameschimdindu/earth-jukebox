@@ -793,7 +793,9 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
   updPlayer();setIcon();
   return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,...(rec==='ssta'?{then_words:valueWords(toX(rec,tv)),now_words:valueWords(toX(rec,nv)),...(Math.max(Math.abs(tv),Math.abs(nv))>=SSTA_LIMIT?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real difference may be larger.'}:{})}:{}),
     sound:'then on the left, now on the right, each as three notes, then both notes together; a drum if now is warmer',
-    note:'The sound has just played. Speak now, in at most three short sentences: both weeks with their values, then difference_words, then ask what next. Do not explain the key. Do not give a cause.'};}
+    say:(()=>{const w=k=>stepLabel(rec,k,true).replace(/^the week of /,'');const v=(t,k)=>rec==='ssta'?valueWords(toX(rec,t)):`${t} degrees Celsius`;
+      return `Week of ${w(j)}: ${v(tv)}. Week of ${w(i)}: ${v(nv)}. That is ${words}.`;})(),
+    note:'The sound has just played. Say `say` in your own words and nothing else (no key, no cause), then ask what next in one short question.'};}
 function flashYear(){const y=$('#pYear');y.classList.remove('flash');void y.offsetWidth;y.classList.add('flash');setTimeout(()=>y.classList.remove('flash'),1600);}
 /* the logo: pause, play again, or go home */
 $('#logoBtn').onclick=()=>{if(!started)return;logoPress=performance.now();if(playingSomething()||canResume())playPause();else goHome(true);};
