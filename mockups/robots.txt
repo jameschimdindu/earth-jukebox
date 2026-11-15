@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /health-twin.html
+Disallow: /jukebox.html
+Disallow: /orb-pins.html
+Disallow: /orb-test.html
+
+Sitemap: https://listentotheplanet.vercel.app/sitemap.xml
