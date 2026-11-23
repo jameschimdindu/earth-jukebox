@@ -26,4 +26,4 @@ jobs:
           git config user.name "earth-jukebox-data-bot"
           git config user.email "actions@users.noreply.github.com"
           git add mockups/data/ice pipeline/state/ice
-          if git diff --cached --quiet; then echo "No change."; else git commit -m "Sea ice rebuilt with the coast fix" && git pull --rebase -X theirs && git push; fi
+          if git diff --cached --quiet; then echo "No change."; else git commit -m "Sea ice rebuilt with the coast fix" && git pull --rebase --autostash -X theirs && git push; fi

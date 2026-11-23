@@ -21,3 +21,6 @@ log/
 
 # Juke tool definitions stay local (round 78)
 agent/tools.json
+# Python caches (round 103: a tracked .pyc blocked the daily data push)
+__pycache__/
+*.pyc
