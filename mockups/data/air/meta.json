@@ -419,7 +419,7 @@
  },
  "error_vs_geos_fp": "see docs/PROCESS.md (round 65)",
  "first_frame_utc": "2026-11-07T09:00:00",
- "time_check_vs_geos_fp_c": 0.43,
+ "time_check_vs_geos_fp_c": 0.8,
  "updated": "2026-11-23",
  "update": "pipeline/rolling.py, daily (.github/workflows/update-data.yml)"
 }
