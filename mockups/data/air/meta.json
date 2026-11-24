@@ -5,10 +5,6 @@
  "frames_read": 372,
  "hours_per_note": 6,
  "note_starts_utc": [
-  "2026-11-07T09:00Z",
-  "2026-11-07T15:00Z",
-  "2026-11-07T21:00Z",
-  "2026-11-08T03:00Z",
   "2026-11-08T09:00Z",
   "2026-11-08T15:00Z",
   "2026-11-08T21:00Z",
@@ -66,13 +62,13 @@
   "2026-11-21T21:00Z",
   "2026-11-22T03:00Z",
   "2026-11-22T09:00Z",
-  "2026-11-22T15:00Z"
+  "2026-11-22T15:00Z",
+  "2026-11-22T21:00Z",
+  "2026-11-23T03:00Z",
+  "2026-11-23T09:00Z",
+  "2026-11-23T15:00Z"
  ],
  "week_starts": [
-  "2026-11-07",
-  "2026-11-07",
-  "2026-11-07",
-  "2026-11-08",
   "2026-11-08",
   "2026-11-08",
   "2026-11-08",
@@ -130,7 +126,11 @@
   "2026-11-21",
   "2026-11-22",
   "2026-11-22",
-  "2026-11-22"
+  "2026-11-22",
+  "2026-11-22",
+  "2026-11-23",
+  "2026-11-23",
+  "2026-11-23"
  ],
  "forecast": [
   false,
@@ -196,7 +196,7 @@
   true,
   true
  ],
- "forecast_rule": "a note is marked forecast when its last hour is after 22 Nov 2026 07:30 UTC, when NASA wrote the frames",
+ "forecast_rule": "a note is marked forecast when its last hour is after 23 Nov 2026 07:30 UTC, when NASA wrote the frames",
  "grid": {
   "rows": 180,
   "cols": 360,
@@ -418,8 +418,8 @@
   ]
  },
  "error_vs_geos_fp": "see docs/PROCESS.md (round 65)",
- "first_frame_utc": "2026-11-07T09:00:00",
- "time_check_vs_geos_fp_c": 0.8,
- "updated": "2026-11-23",
+ "first_frame_utc": "2026-11-08T09:00:00",
+ "time_check_vs_geos_fp_c": 0.41,
+ "updated": "2026-11-24",
  "update": "pipeline/rolling.py, daily (.github/workflows/update-data.yml)"
 }
