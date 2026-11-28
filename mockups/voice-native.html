@@ -273,7 +273,15 @@ body.side #orbBox{width:calc(100vw / var(--gs,1))}
 .seg button{flex:1;border:0;background:transparent;padding:8px;min-height:40px;font-size:16px;line-height:24px;color:var(--mute);cursor:pointer;transition:background-color .16s var(--ease-out),color .16s var(--ease-out)}
 .seg button[aria-checked=true]{background:var(--w16);color:var(--ink)}
 .seg button:focus-visible{outline-offset:-2px}
-@media (max-width:820px){.side-info{display:none}}
+/* small screens: the same player and record card, smaller (round 108; before, they were hidden at 820 px and below) */
+/* phones: the player spans the top above the globe; the record card keeps only its NASA link, on the date's line */
+@media (max-width:640px){.side-info{top:80px}#playerWrap{left:var(--g);right:var(--g);width:auto;text-align:left}#playerWrap #player{text-align:left}
+  #player .yr{font-size:32px;line-height:40px;margin-bottom:4px}
+  #sourceWrap{left:auto;right:var(--g);width:auto;text-align:right}#sourceWrap .dyk,#sTitle,#sMeta,#source .thumb{display:none}#sLink{line-height:40px}}
+/* short screens (phones on their side): a smaller date, and the record card keeps only its NASA link */
+@media (max-height:520px) and (min-width:641px){.side-info{top:72px;width:min(320px,36vw)}#player .yr{font-size:32px;line-height:40px;margin-bottom:4px}
+  #sourceWrap .dyk,#sTitle,#sMeta,#source .thumb{display:none}#sLink{line-height:40px}}
+@media (max-height:400px) and (min-width:641px){.side-info{top:64px}#player .yr{margin-bottom:0}#player .prog{margin:4px 0}}
 @media (max-width:640px){:root{--orb:min(96vw,48vh);--g:16px}#captions{font-size:16px;line-height:24px}#gate h1{font-size:40px;line-height:48px}}
 @media (max-width:480px){header .logo b,header .logo span{display:none}#shortcuts{width:100%;overflow-x:auto;scrollbar-width:none;mask-image:linear-gradient(90deg,var(--black) 88%,transparent);-webkit-mask-image:linear-gradient(90deg,var(--black) 88%,transparent)}#shortcuts::-webkit-scrollbar{display:none}.chip{flex:none}.chip span{overflow:visible}}
 @media (prefers-reduced-motion:reduce){*{transition-duration:0s!important}}
@@ -711,7 +719,9 @@ const valueLine=(x,cap=true)=>cur.rec==='bio'||cur.rec==='ice'||cur.rec==='fire'
 function valueWords(x){const r=cur.rec;if(r==='sst')return x<.25?'cold for the sea':x<.55?'cool for the sea':x<.8?'warm for the sea':'very warm for the sea';if(r==='ssta'){const v=val(x,'ssta'),a=Math.abs(v);return a<SSTA_ERR?'close to normal':`${a>=SSTA_LIMIT?'at least 4 degrees':a===1?'1 degree':a+' degrees'} ${v>0?'warmer':'cooler'} than normal`;}
   if(r==='air'){const v=val(x,'air');return v<0?'below freezing':v<10?'cold air':v<20?'mild air':v<30?'warm air':'hot air';}if(r==='ice'){const v=val(x,'ice');return v<15?'open water':v<50?'some ice':v<85?'a lot of ice':'almost all ice';}if(r==='bio'){const v=val(x,'bio');return v<.1?'very little plankton':v<.3?'little plankton':v<1?'some plankton':v<3?'a lot of plankton':'very rich in plankton';}{const v=val(x,'fire');return v<1?'no fire seen':v<5?'a few fire dots':v<20?'many fire dots':'a lot of fire';}}
 /* the value now (latest week with data) as 0..1, or null where there is no data */
-function base01(rec,lat,lon){if(hasReal(rec)){const s=realSeries(rec,lat,lon);if(!s)return null;for(let i=s.t.length-1;i>=0;i--)if(s.t[i]!=null)return toX(rec,s.t[i]);return null;}return mockBase(rec,lat,lon);}
+function base01(rec,lat,lon){if(hasReal(rec)){const s=realSeries(rec,lat,lon);if(!s)return null;for(let i=s.t.length-1;i>=0;i--)if(s.t[i]!=null)return toX(rec,s.t[i]);
+  // round 108: while the daily tile loads, use the newest weekly value (already in memory), so a first spin is not silent
+  if(s.loading){const R=REAL[rec];for(let w=R.n-1;w>=0;w--){const v=R.data[w*64800+s.cell.r*360+s.cell.c];if(v!==255)return toX(rec,realDec(rec,v));}}return null;}return mockBase(rec,lat,lon);}
 function mockBase(rec,lat,lon){const a=Math.abs(lat)/90,L=isLand(lat,lon);
   if(rec==='sst'||rec==='air')return Math.max(0,Math.min(1,1-Math.pow(a,.8)+(rec==='air'&&L?.05:0)));if(rec==='ice')return L?0:Math.max(0,Math.min(1,(a-.6)/.3));if(rec==='bio')return L?Math.max(0,.8-a):.15;if(rec==='fire')return L&&a<.4?.5:0;return .55;}
 /* ================= real data from the pipeline =================
@@ -827,7 +837,7 @@ function startTrack(from=0,to=steps(cur.rec)-1){TN.on=false;clearTimeout(TN.time
   setIcon();updPlayer();}
 function playPause(){if(prog&&prog.type==='then'){thenAndNow({week:stepDate(prog.rec,prog.i)});return;}if(!prog||(prog.type==='track'&&!trackTimer)){startTrack(prog&&prog.type==='track'?prog.from:0,prog&&prog.type==='track'?prog.to:steps(cur.rec)-1);return;}if(prog.type==='spin'){spinTimer?stopSpinSound():startSpinSound();}else if(prog.type==='year'){startTrack(prog.i,steps(cur.rec)-1);}else{trackPaused=!trackPaused;}setIcon();}
 $('#pPlay').onclick=playPause;
-function startSpinSound(){if(!spinTimer)surprise();clearInterval(spinTimer);spinTimer=setInterval(()=>{const lat=O.vt/.75;const x=base01(cur.rec,lat,O.vl);if(x==null)return;tintTo(cur.rec,x);tone(noteOf(x).hz,.35,spinPos(lat),.12);},420);setIcon();}
+function startSpinSound(){if(!spinTimer)surprise();clearInterval(spinTimer);spinTimer=setInterval(()=>{const lat=O.vt/.75;ensureDaily(cur.rec,lat,O.vl+(O.dir||1)*30);const x=base01(cur.rec,lat,O.vl);if(x==null)return;tintTo(cur.rec,x);tone(noteOf(x).hz,.35,spinPos(lat),.12);},420);setIcon();}
 function stopSpinSound(){clearInterval(spinTimer);spinTimer=null;setIcon();}
 /* ================= Then and now =================
    The same week at this place, one year apart. Then plays on the left, now on the right, each as a three-note phrase
