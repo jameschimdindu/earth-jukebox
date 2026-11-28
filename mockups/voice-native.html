@@ -764,6 +764,17 @@ const yearSteps=rec=>isDaily(rec)?365:52;
 const oneNote=rec=>{const u=noteUnit(rec);return /^\d/.test(u)?u:'one '+u;};
 const noteGap=rec=>isDaily(rec)?.15:hasReal(rec)?.3:.38;  /* seconds per note: daily tracks are 7 times longer */
 const noteUnit=rec=>isDaily(rec)?'day':!hasReal(rec)?'year':REAL[rec].meta.hours_per_note?`${REAL[rec].meta.hours_per_note} hours`:'week';
+/* round 109: days when NASA's sea picture of the Gulf of Bothnia is more than 1 degree colder than MUR, the satellite record
+   NASA's map is drawn from (docs/PROCESS.md, round 108: 183 of 902 days checked, so other days may be cold too). The note keeps
+   NASA's value; the player and Juke say that the two disagree. Each date has the gulf's mean gap, NASA minus MUR, in degrees.
+   A day that NASA has drawn again since (meta daily.revised, pipeline/rolling.py) loses its warning */
+const COLD_GULF={'2024-05-27':-3.6,'2024-06-11':-1.2,'2024-06-29':-1.1,'2024-07-01':-2.4,'2024-07-02':-2.6,'2024-07-11':-1.2,'2024-07-19':-1.8,'2024-07-20':-1.9,
+  '2024-07-24':-2.4,'2024-07-25':-4.2,'2024-07-26':-1.1,'2024-07-31':-1.6,'2025-07-12':-3.3,'2025-07-13':-3.1,'2025-07-14':-2.1,'2025-07-17':-2.5,'2025-07-18':-3.7,
+  '2025-07-22':-2.7,'2025-07-23':-6.2,'2025-07-28':-1.4,'2025-07-29':-1.8,'2026-10-24':-1.3,'2026-10-25':-2.3,'2026-11-12':-1.5,'2026-11-13':-3.4,'2026-11-14':-1.1};
+const DISAGREE_LABEL='NASA\'s picture disagrees with the satellite record here';
+function gulfGap(rec,lat,lon,i){if(!(rec==='sst'||rec==='ssta')||!isDaily(rec)||!(i>=0&&i<steps(rec)))return null;const d=stepDate(rec,i),g=COLD_GULF[d];if(g==null||(REAL[rec].meta.daily.revised||[]).includes(d))return null;
+  const c=dataCell(rec,lat,lon);return c&&c.lat>=61.5&&c.lat<=65.5&&c.lon>=17.5&&c.lon<=25.5?-g:null;}
+const disagreeWords=gap=>`On this day, ${DISAGREE_LABEL}. Across the Gulf of Bothnia, MUR, the satellite data that NASA's map is drawn from, is about ${gap} degrees warmer than NASA's picture. The note plays NASA's value. Say this in one short sentence.`;
 const isForecast=(rec,i)=>!!(hasReal(rec)&&REAL[rec].meta.forecast&&REAL[rec].meta.forecast[i]);
 const steps=rec=>isDaily(rec)?dayCount(rec):hasReal(rec)?REAL[rec].n:45;
 function stepLabel(rec,i,long){if(!hasReal(rec))return String(1981+i);
@@ -805,8 +816,8 @@ function readingFor(rec,lat,lon,i){const sp=samplePoint(rec,lat,lon),real=hasRea
   const when=real?{just_played:stepLabel(rec,i,true)}:{just_played_year:1981+i};
   if(x==null)return{x:null,...when,no_data:true,note:'NASA\'s picture has no sea value here that week (ice, land or a gap). The note is silent.',water_name:sp.water,side:sideOf(lon)};
   const prior=s.slice(0,i).filter(v=>v!=null),prev=prior.length?prior[prior.length-1]:x,avg=prior.length?prior.reduce((a,b)=>a+b,0)/prior.length:x,n=noteOf(x);
-  const cell=real?dataCell(rec,sp.lat,sp.lon):null;
-  return {x,...when,value:val(x,rec),unit:REC[rec].unit,value_words:valueWords(x),pitch_words:pitchWords(x),compared_with_previous:x>prev+.01?`higher than the ${unit_} before`:x<prev-.01?`lower than the ${unit_} before`:`about the same as the ${unit_} before`,...(isForecast(rec,i)?{forecast:'This note is a forecast, not a measurement: NASA made the picture before these hours happened.'}:{}),
+  const cell=real?dataCell(rec,sp.lat,sp.lon):null,gap=real?gulfGap(rec,sp.lat,sp.lon,i):null;
+  return {x,...(gap!=null?{disagrees:disagreeWords(gap)}:{}),...when,value:val(x,rec),unit:REC[rec].unit,value_words:valueWords(x),pitch_words:pitchWords(x),compared_with_previous:x>prev+.01?`higher than the ${unit_} before`:x<prev-.01?`lower than the ${unit_} before`:`about the same as the ${unit_} before`,...(isForecast(rec,i)?{forecast:'This note is a forecast, not a measurement: NASA made the picture before these hours happened.'}:{}),
     drum:rec==='ssta'?val(x,rec)>0:x-avg>.04,drum_means:drumMeans(rec),...(rec==='ssta'&&Math.abs(val(x,rec))>=SSTA_LIMIT?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real value may be even further from normal.'}:{}),instrument:cur.inst,side:sideOf(lon),water_name:sp.water,note_name:n.name,frequency_hz:n.hz,
     ...(real?{data:REAL_SRC[rec].source,...(REC[rec].sea?{sea_data_km_from_place:cell?Math.round(angDist(lat,lon,cell.lat,cell.lon)*6371):null}:{})}:{data:'Sample value. Real NASA values for this record come later.'})};}
 const reading=i=>({mock:!hasReal(cur.rec),place:fullPlace(),record:REC[cur.rec].name,...readingFor(cur.rec,cur.lat,cur.lon,i)});
@@ -825,10 +836,10 @@ function setFld(id,text,label){const b=$(id);const t=id==='#fRec'?$('#fRecT'):b;
 function updPlayer(){/* a note from another record does not belong to this one (round 74) */if(prog&&prog.rec&&prog.rec!==cur.rec&&prog.type!=='spin')prog=null;const sp=samplePoint();setFld('#fRec',REC[cur.rec].name,'Record');setFld('#fInst',cur.inst,'Instrument');setFld('#fPlace',fullPlace(),'Place');
   $('#pWater').textContent=REC[cur.rec].sea&&sp.water&&isLand(cur.lat,cur.lon)?`Sea: ${sp.water}`:'';$('#pVal').textContent='';
   if(!prog){$('#pYear').textContent='Ready';$('#pBar').style.width='0';return;}
-  if(prog.type==='then'){const s=realSeries(cur.rec,sp.lat,sp.lon);$('#pYear').textContent='Then and now';$('#pVal').textContent=s?`${stepLabel(cur.rec,prog.j)}: ${cur.rec==='ssta'&&s.t[prog.j]>0?'+':''}${s.t[prog.j]}${unitShort(cur.rec)}, ${stepLabel(cur.rec,prog.i)}: ${cur.rec==='ssta'&&s.t[prog.i]>0?'+':''}${s.t[prog.i]}${unitShort(cur.rec)}`:'';$('#pBar').style.width='100%';return;}
+  if(prog.type==='then'){const s=realSeries(cur.rec,sp.lat,sp.lon);$('#pYear').textContent='Then and now';$('#pVal').textContent=s?`${stepLabel(cur.rec,prog.j)}: ${cur.rec==='ssta'&&s.t[prog.j]>0?'+':''}${s.t[prog.j]}${unitShort(cur.rec)}, ${stepLabel(cur.rec,prog.i)}: ${cur.rec==='ssta'&&s.t[prog.i]>0?'+':''}${s.t[prog.i]}${unitShort(cur.rec)}${[prog.j,prog.i].some(k=>gulfGap(cur.rec,sp.lat,sp.lon,k)!=null)?`. ${DISAGREE_LABEL}`:''}`:'';$('#pBar').style.width='100%';return;}
   if(prog.type==='two'){$('#pYear').textContent=stepLabel(cur.rec,Math.max(0,trackI));$('#pVal').textContent='Two places: this place on the left, the other on the right';$('#pBar').style.width=(trackI/Math.max(1,prog.to))*100+'%';return;}
   if(prog.type==='spin'){$('#pYear').textContent='Spinning';setFld('#fPlace',`Around the world at ${Math.abs(prog.lat).toFixed(0)}° ${prog.lat>=0?'north':'south'}, ${prog.dir>0?'east':'west'}`,'Place');$('#pWater').textContent='';$('#pBar').style.width='100%';return;}
-  const x=currentX();$('#pVal').textContent=x==null?'No sea data here this week':valueLine(x);
+  const x=currentX(),gi=prog.type==='year'?prog.i:Math.max(prog.from,trackI-1),gap=prog.type==='spin'?null:gulfGap(cur.rec,sp.lat,sp.lon,gi);$('#pVal').textContent=x==null?'No sea data here this week':valueLine(x)+(gap!=null?`. ${DISAGREE_LABEL}`:'');
   $('#pYear').textContent=stepLabel(cur.rec,prog.type==='year'?prog.i:Math.max(prog.from,trackI-1));$('#pBar').style.width=prog.type==='year'?'100%':((trackI-prog.from)/Math.max(1,prog.to-prog.from+1)*100)+'%';}
 function surprise(){if(cur.instMode!=='random')return;const c=INSTRUMENTS.filter(i=>i!==cur.inst);cur.inst=c[Math.floor(Math.random()*c.length)];syncOpts();}
 function startTrack(from=0,to=steps(cur.rec)-1){TN.on=false;clearTimeout(TN.timer);surprise();clearInterval(trackTimer);stopSpinSound();trackI=from;trackPaused=false;setProg({type:'track',from,to});const rec=cur.rec;
@@ -850,6 +861,7 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
   const sp=samplePoint(),s=realSeries(rec,sp.lat,sp.lon);if(!s)return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no data within about 900 km of ${fullPlace()}.`};
   const Y=yearSteps(rec);let i=weekIndex(rec,week);if(i<Y)i=Y;let tries=0;while((s.t[i]==null||s.t[i-Y]==null)&&tries<Y&&i>Y){i--;tries++;}const j=i-Y;if(s.t[i]==null||s.t[j]==null)return{error:'No pair of matching weeks with data here.'};
   clearInterval(trackTimer);trackTimer=null;stopSpinSound();clearTimeout(TN.timer);
+  const gaps=[j,i].map(k=>gulfGap(rec,sp.lat,sp.lon,k)),doubt=gaps.some(g=>g!=null);
   const tv=s.t[j],nv=s.t[i],diff=rec==='bio'?+(nv-tv).toPrecision(2):+(nv-tv).toFixed(1),err=REAL_SRC[rec].err,same=Math.abs(diff)<err;
   TN.thenC.setRGB(...rampRGB(rec,toX(rec,tv)));TN.nowC.setRGB(...rampRGB(rec,toX(rec,nv)));TN.on=true;setProg({type:'then',i,j});
   const L={az:-60,el:posOf(cur.lat,cur.lon).el},Rr={az:60,el:L.el},C={az:0,el:L.el},hz=k=>s.t[k]==null?null:noteOf(toX(rec,s.t[k])).hz;
@@ -860,9 +872,10 @@ function thenAndNow({week}={}){const rec=cur.rec;if(!hasReal(rec))return{error:`
 
   const temp=['sst','ssta','air'].includes(rec),U=REC[rec].unit;
   const words=!temp?(diff===0?`the same as the same ${isDaily(rec)?'day':'week'} a year before`:`${diffSay(rec,diff)} than the same ${isDaily(rec)?'day':'week'} a year before`):same?`about the same: the difference, ${Math.abs(diff)} degrees, is smaller than the measured error of about ${err<.25?'0.2':'0.3'} degrees`:`${Math.abs(diff)} ${Math.abs(diff)===1?'degree':'degrees'} Celsius ${diff>0?'warmer':'cooler'}${rec==='ssta'?', compared with normal,':''} than the same ${isDaily(rec)?'day':'week'} a year before`;
-  $('#srStatus').textContent=`Then and now at ${fullPlace()}. ${stepLabel(rec,j,true)}: ${temp?tv+' degrees':valueSay(rec,tv)}. ${stepLabel(rec,i,true)}: ${temp?nv+' degrees':valueSay(rec,nv)}. ${words}.`;
+  $('#srStatus').textContent=`Then and now at ${fullPlace()}. ${stepLabel(rec,j,true)}: ${temp?tv+' degrees':valueSay(rec,tv)}. ${stepLabel(rec,i,true)}: ${temp?nv+' degrees':valueSay(rec,nv)}. ${words}.${doubt?` ${DISAGREE_LABEL} on one of these days.`:''}`;
   updPlayer();setIcon();
   return{place:fullPlace(),water_name:sp.water,then_week:stepLabel(rec,j,true),then_value:tv,now_week:stepLabel(rec,i,true),now_value:nv,unit:REC[rec].unit,difference:diff,difference_words:words,...(rec==='ssta'?{then_words:valueWords(toX(rec,tv)),now_words:valueWords(toX(rec,nv)),...(Math.max(Math.abs(tv),Math.abs(nv))>=SSTA_LIMIT?{at_bar_limit:'NASA\'s colour bar stops at 4 degrees, so the real difference may be larger.'}:{})}:{}),
+    ...(doubt?{disagrees:disagreeWords(Math.max(...gaps.filter(g=>g!=null))).replace('On this day',`On ${stepLabel(rec,gaps[0]!=null?j:i,true)}`).replace(' Say this in one short sentence.',' So this difference is not reliable. Say this after `say`, in one short sentence.')}:{}),
     sound:`then on the left, now on the right, each as three notes, then both notes together; a drum if now is ${temp?'warmer':'higher'}`,
     say:(()=>{const w=k=>stepLabel(rec,k,true).replace(/^the week of /,'');const v=(t,k)=>rec==='ssta'?valueWords(toX(rec,t)):temp?`${t} degrees Celsius`:`${valueSay(rec,t)}, ${valueWords(toX(rec,t))}`;
       const W=isDaily(rec)?'':'Week of ';return `${W}${w(j)}: ${v(tv)}. ${W}${w(i)}: ${v(nv)}. That is ${words}.`;})(),
@@ -874,9 +887,9 @@ function playToday(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[rec]
   if(i<0||s[i]==null)return{error:`NASA's picture of ${REC[rec].name.toLowerCase()} has no recent data near ${fullPlace()}.`};
   clearInterval(trackTimer);trackTimer=null;stopSpinSound();const r=readingFor(rec,cur.lat,cur.lon,i);
   tone(r.frequency_hz,1,posOf(cur.lat,cur.lon));if(r.drum)setTimeout(drum,300);if(hasReal(rec))paintWeek(rec,i);tintTo(rec,r.x);setProg({type:'year',i});updPlayer();setIcon();
-  $('#srStatus').textContent=`Today at ${fullPlace()}: ${stepLabel(rec,i,true)}, ${r.value} ${r.unit}, ${r.value_words}.`;
+  $('#srStatus').textContent=`Today at ${fullPlace()}: ${stepLabel(rec,i,true)}, ${r.value} ${r.unit}, ${r.value_words}.${r.disagrees?` ${DISAGREE_LABEL}.`:''}`;
   return{place:fullPlace(),water_name:sp.water,just_played:stepLabel(rec,i,true),newest_in_record:stepLabel(rec,n-1,true),value:r.value,unit:r.unit,value_words:r.value_words,pitch_words:r.pitch_words,
-    ...(r.forecast?{forecast:r.forecast}:{}),...(i<n-1?{note_on_gaps:'The newest weeks have no data at this place, so this is the newest note that has.'}:{}),
+    ...(r.forecast?{forecast:r.forecast}:{}),...(r.disagrees?{disagrees:r.disagrees}:{}),...(i<n-1?{note_on_gaps:'The newest weeks have no data at this place, so this is the newest note that has.'}:{}),
     data:r.data,note:'The note has just played. Say the date and the value in one or two short sentences, then ask what next.'};}
 async function todayUI(){if(conv){send(TODAY_ASK);return;}await ensureHere();const r=playToday();if(r.error){$('#srStatus').textContent=r.error;caption('juke',r.error);}}
 /* Two places at once (round 74): the same record for two places, the first in the left ear, the second in the right */
@@ -914,7 +927,7 @@ function playMoments(){const rec=cur.rec;if(!hasReal(rec))return{error:`${REC[re
   const pick=[[hi,hiName],[lo,loName]];if(jump!=null&&jump!==hi&&jump!==lo)pick.push([jump,'the biggest change from the note before']);
   momentTimers.forEach(clearTimeout);clearInterval(trackTimer);trackTimer=null;stopSpinSound();
   const out=pick.map(([i,name],k)=>{const r=readingFor(rec,cur.lat,cur.lon,i);momentTimers.push(setTimeout(()=>{tone(r.frequency_hz,.9,posOf(cur.lat,cur.lon));if(r.drum)drum();setProg({type:'year',i});updPlayer();},k*1300));
-    return{moment:name,when:stepLabel(rec,i,true),value:r.value,unit:r.unit,value_words:r.value_words,...(r.forecast?{forecast:r.forecast}:{})};});
+    return{moment:name,when:stepLabel(rec,i,true),value:r.value,unit:r.unit,value_words:r.value_words,...(r.forecast?{forecast:r.forecast}:{}),...(r.disagrees?{disagrees:r.disagrees}:{})};});
   $('#srStatus').textContent=`Moments at ${fullPlace()}: `+out.map(m=>`${m.moment}, ${m.when}, ${m.value} ${m.unit}`).join('; ')+'.';
   return{place:fullPlace(),water_name:sp.water,record:REC[rec].name,moments:out,searched:`${stepLabel(rec,0,true)} to ${stepLabel(rec,steps(rec)-1,true)}`,
     note:'The moments have just played, in this order. Say them now, one short sentence each, then ask what next in one short question. Do not mention moments that are not in the list.'};}

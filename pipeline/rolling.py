@@ -103,6 +103,27 @@ def add_day(wdir, d, grid):
     save_week(p, mean, count, days + [d.isoformat()])
 
 
+def replace_day(wdir, d, old_q, grid, rec):
+    """Round 109: NASA drew a day again. Take the old values (from the daily month file, so within half a step) out of
+    the week's running mean and put the new ones in."""
+    p = wdir / f"{week_of(d).isoformat()}.npz"
+    if not p.exists():
+        return add_day(wdir, d, grid)
+    mean, count, days = load_week(p)
+    if d.isoformat() not in days:
+        return add_day(wdir, d, grid)
+    lo, step = ENC[rec]
+    total = mean * count
+    was = old_q != 255
+    total[was] -= lo + step * old_q[was].astype(np.float32)
+    count = count - was
+    ok = np.isfinite(grid)
+    total[ok] += grid[ok]
+    count = count + ok
+    mean = np.where(count > 0, total / np.maximum(count, 1), 0)
+    save_week(p, mean, count, days)
+
+
 def to_weeks(rec):
     """Once: turn the day files into week files, then remove the day files (110 MB -> about 9 MB per record)."""
     mod = __import__(RECORDS[rec]["module"])
@@ -124,6 +145,7 @@ def to_weeks(rec):
 # Vercel's file limit. Each tile is uint8 (31 days x 30 x 30 cells), day d in slot d - 1, the same encoding as the weekly
 # file, 255 = no data. meta.json daily.ranges gives each tile's bytes; the app fetches only its tile (HTTP range request).
 TILE = 30
+REDO_DAYS = 7  # round 109: the newest days are decoded again on every run
 DATA_DIR = {"sst": "sst", "sst_anomaly": "sst_anomaly", "ice": "ice"}
 
 
@@ -235,7 +257,7 @@ def build_daily(rec):
     print(f"{rec}: {len(grids)} days written as daily tiles")
 
 
-def daily_meta(rec, days):
+def daily_meta(rec, days, revised=()):
     """Adds the daily part to meta.json and removes months that have left NASA's window."""
     import json
     base = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "daily"
@@ -254,8 +276,10 @@ def daily_meta(rec, days):
     meta_p = HERE.parent / "mockups" / "data" / DATA_DIR[rec] / "meta.json"
     meta = json.loads(meta_p.read_text())
     months = sorted(f.stem for f in base.glob("*.bin"))
+    # days NASA drew again after we first decoded them (round 109); the app drops its warning for these days
+    revised = sorted(d for d in set((meta.get("daily") or {}).get("revised", [])) | set(revised) if d >= first.isoformat())
     meta["daily"] = {"first": first.isoformat(), "last": last.isoformat(), "tile_deg": TILE, "months": months,
-                     "missing_days": sorted(every - set(have)), "ranges": {m: offs[m] for m in months},
+                     "missing_days": sorted(every - set(have)), "revised": revised, "ranges": {m: offs[m] for m in months},
                      "layout": "daily/<YYYY-MM>.bin: 72 gzipped tiles (30 x 30 degrees, row by row from 90 N, 180 W), each uint8 31 days x 30 x 30, day d in slot d - 1, same encoding as weekly; ranges[month][tile] = [byte start, byte length]"}
     meta_p.write_text(json.dumps(meta, indent=1))
     print(f"{rec}: daily {first} to {last}, {len(have)} days, {len(months)} month files")
@@ -274,10 +298,14 @@ def update(rec):
         counted |= set(load_week(p)[2])
     in_daily = daily_index(rec)
     missing = [d for d in days if d.isoformat() not in counted or d.isoformat() not in in_daily]
-    print(f"{rec}: NASA has {days[0]} to {days[-1]} ({len(days)} days); {len(missing)} new", flush=True)
+    # round 109: the newest days are decoded again on every run. NASA may draw them again once MUR revises its data
+    # (MUR revises for about 7 days); a day that changed replaces the old one (meta.json daily.revised)
+    again = [d for d in days[-REDO_DAYS:] if d not in missing]
+    print(f"{rec}: NASA has {days[0]} to {days[-1]} ({len(days)} days); {len(missing)} new, {len(again)} decoded again", flush=True)
+    revised = []
     work = Path(tempfile.mkdtemp(prefix=f"{rec}-"))
     try:
-        if missing:
+        if missing or again:
             mod.DAY0, mod.N_DAYS, mod.DAYS = days[0], (days[-1] - days[0]).days + 1, work
             tree, values, _ = mod.bar_tree()
             cube = mod.lut(tree, values)
@@ -287,12 +315,27 @@ def update(rec):
                 mod.one_day(n, tree, values, cube)
                 return d, np.load(work / f"{n:03d}.npy")
             new = {}
+            offs = load_offsets(rec)
+            months = {}
             with ThreadPoolExecutor(6) as ex:
-                for d, g in ex.map(one, missing):
+                for d, g in ex.map(one, missing + again):
                     fixed = mod.centre_fix(g)
-                    add_day(wdir, d, fixed)
-                    new[d] = quantize(rec, fixed)
-                    print(f"   decoded {d}", flush=True)
+                    q = quantize(rec, fixed)
+                    if d in missing:
+                        add_day(wdir, d, fixed)
+                        print(f"   decoded {d}", flush=True)
+                    else:
+                        m = f"{d:%Y-%m}"
+                        if m not in months:
+                            months[m] = read_month(rec, m, offs)
+                        old_q = months[m][d.day - 1]
+                        changed = int(np.count_nonzero(old_q != q))
+                        if not changed:
+                            continue
+                        replace_day(wdir, d, old_q, fixed, rec)
+                        revised.append(d.isoformat())
+                        print(f"   {d}: NASA drew it again, {changed} cells changed", flush=True)
+                    new[d] = q
             write_months(rec, new)
             save_daily_index(rec, daily_index(rec) | {d.isoformat() for d in new})
     finally:
@@ -322,7 +365,7 @@ def update(rec):
                  "update": "pipeline/rolling.py, daily (.github/workflows/update-data.yml)"})
     (dest / "meta.json").write_text(json.dumps(meta, indent=1))
     print(f"{rec}: wrote {len(weeks)} weeks, {weeks[0][0]} to {weeks[-1][0]}")
-    daily_meta(rec, days)
+    daily_meta(rec, days, revised)
 
 
 # ---------------- sea ice: one frame per week, frames named by year and day of the year ----------------
